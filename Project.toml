@@ -1,0 +1,41 @@
+name = "WendaoCodeParser"
+uuid = "f20f04df-04eb-4b3b-9fa2-a7e4ac8e000b"
+authors = ["CyberXiuXian Workshop"]
+version = "0.1.0"
+
+[deps]
+Absyn = "ce2f92e2-a952-11e9-0543-8b443f216f1d"
+ImmutableList = "4a558cac-c1ed-11e9-20da-3584bcd8709a"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+MetaModelica = "9d7f2a79-07b5-5542-8b19-c0100dda6b06"
+OMParser = "11f87224-cae7-4e99-a924-e50d12f62c59"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+WendaoArrow = "561c8d8d-4bcf-4807-873b-a6b7d1e55843"
+
+[sources]
+Absyn = { url = "https://github.com/OpenModelica/Absyn.jl", rev = "master" }
+ImmutableList = { url = "https://github.com/OpenModelica/ImmutableList.jl", rev = "master" }
+JuliaSyntax = { url = "https://github.com/JuliaLang/JuliaSyntax.jl", rev = "main" }
+MetaModelica = { url = "https://github.com/OpenModelica/MetaModelica.jl", rev = "master" }
+OMParser = { url = "https://github.com/tao3k/OMParser.jl", rev = "853c28d294339a611eaf60b08841ffb55b127db1" }
+WendaoArrow = { path = "../WendaoArrow.jl" }
+
+[compat]
+Absyn = "1.3"
+ImmutableList = "0.1"
+JSON3 = "1"
+JuliaSyntax = "2"
+MetaModelica = "0.0.5"
+OMParser = "0.0.3"
+Tables = "1"
+WendaoArrow = "0.1"
+julia = "1.12"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
