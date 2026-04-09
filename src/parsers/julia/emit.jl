@@ -58,73 +58,6 @@ function _push_export!(
     return nothing
 end
 
-function _push_import!(
-    state::JuliaCollectionState,
-    import_name::String,
-    line_start::Int,
-    line_end::Int;
-    reexported::Bool = false,
-    context::JuliaScopeContext = JuliaScopeContext(),
-)
-    scope_key = _julia_scope_key(context)
-    existing_index = findfirst(
-        entry ->
-            String(entry["module"]) == import_name &&
-                String(get(entry, "owner_path", get(entry, "module_path", ""))) ==
-                scope_key,
-        state.imports,
-    )
-    if !isnothing(existing_index)
-        if reexported && !Bool(get(state.imports[existing_index], "reexported", false))
-            state.imports[existing_index]["reexported"] = true
-            for node in Iterators.reverse(state.nodes)
-                if get(node, "node_kind", nothing) == "import" &&
-                   get(node, "name", nothing) == import_name &&
-                   String(
-                       get(
-                           get(node, "metadata", Dict{String,Any}()),
-                           "owner_path",
-                           get(
-                               get(node, "metadata", Dict{String,Any}()),
-                               "module_path",
-                               "",
-                           ),
-                       ),
-                   ) == scope_key
-                    node_metadata = get(node, "metadata", Dict{String,Any}())
-                    node_metadata["reexported"] = true
-                    node["metadata"] = node_metadata
-                    break
-                end
-            end
-        end
-        return nothing
-    end
-
-    push!(state.import_set, (import_name, scope_key))
-    entry = Dict{String,Any}(
-        "module" => import_name,
-        "reexported" => reexported,
-        "line_start" => line_start,
-        "line_end" => line_end,
-    )
-    merge!(entry, _julia_scope_metadata(context))
-    push!(state.imports, entry)
-    metadata = _julia_scope_metadata(context)
-    metadata["module"] = import_name
-    metadata["reexported"] = reexported
-    _push_ast_node!(
-        state,
-        "import",
-        import_name;
-        text = import_name,
-        line_start = line_start,
-        line_end = line_end,
-        metadata = metadata,
-    )
-    return nothing
-end
-
 function _push_symbol!(
     state::JuliaCollectionState,
     symbol_name::String,
@@ -295,37 +228,6 @@ function _push_docstring!(
         line_end = line_end,
         target_line_start = target_line_start,
         target_line_end = target_line_end,
-        metadata = metadata,
-    )
-    return nothing
-end
-
-function _push_include!(
-    state::JuliaCollectionState,
-    include_literal::String,
-    line_start::Int,
-    line_end::Int,
-    context::JuliaScopeContext,
-)
-    include_key = (include_literal, _julia_scope_key(context))
-    include_key in state.include_set && return nothing
-    push!(state.include_set, include_key)
-    include_entry = Dict{String,Any}(
-        "path" => include_literal,
-        "line_start" => line_start,
-        "line_end" => line_end,
-    )
-    merge!(include_entry, _julia_scope_metadata(context))
-    push!(state.includes, include_entry)
-    metadata = _julia_scope_metadata(context)
-    metadata["path"] = include_literal
-    _push_ast_node!(
-        state,
-        "include",
-        include_literal;
-        text = include_literal,
-        line_start = line_start,
-        line_end = line_end,
         metadata = metadata,
     )
     return nothing

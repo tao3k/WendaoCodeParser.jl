@@ -2,7 +2,7 @@ mutable struct ModelicaCollectionState
     primary_class::Union{Nothing,String}
     restriction::Union{Nothing,String}
     imports::Vector{Dict{String,Any}}
-    import_set::Set{Tuple{String,String}}
+    import_set::Set{Tuple{String,String,String}}
     extends::Vector{Dict{String,Any}}
     extend_set::Set{Tuple{String,String}}
     symbols::Vector{Dict{String,Any}}
@@ -17,7 +17,7 @@ function ModelicaCollectionState()
         nothing,
         nothing,
         Dict{String,Any}[],
-        Set{Tuple{String,String}}(),
+        Set{Tuple{String,String,String}}(),
         Dict{String,Any}[],
         Set{Tuple{String,String}}(),
         Dict{String,Any}[],
@@ -257,15 +257,21 @@ function _collect_modelica_element!(
             owner_path = owner_path,
         )
     elseif spec isa Absyn.IMPORT
+        dependency = _modelica_import_dependency(spec.import_)
         _push_modelica_import!(
             state,
-            _modelica_import_name(spec.import_);
+            String(
+                get(dependency, "dependency_target", _modelica_import_name(spec.import_)),
+            );
             line_start = _line_start(spec.info),
             line_end = _line_end(spec.info),
-            metadata = Dict{String,Any}(
-                "owner_name" => owner_name,
-                "owner_path" => owner_path,
-                "class_path" => owner_path,
+            metadata = merge(
+                Dict{String,Any}(
+                    "owner_name" => owner_name,
+                    "owner_path" => owner_path,
+                    "class_path" => owner_path,
+                ),
+                dependency,
             ),
         )
     elseif spec isa Absyn.EXTENDS
@@ -390,76 +396,6 @@ function _collect_modelica_equations!(
     return nothing
 end
 
-function _push_modelica_import!(
-    state::ModelicaCollectionState,
-    import_name::String;
-    line_start::Union{Nothing,Int} = nothing,
-    line_end::Union{Nothing,Int} = nothing,
-    metadata = Dict{String,Any}(),
-)
-    import_metadata = Dict{String,Any}(metadata)
-    owner_key =
-        String(get(import_metadata, "owner_path", get(import_metadata, "owner_name", "")))
-    import_key = (import_name, owner_key)
-    import_key in state.import_set && return nothing
-    push!(state.import_set, import_key)
-    import_entry = Dict{String,Any}(
-        "module" => import_name,
-        "line_start" => line_start,
-        "line_end" => line_end,
-    )
-    merge!(import_entry, import_metadata)
-    push!(state.imports, import_entry)
-    import_metadata["module"] = import_name
-    push!(
-        state.nodes,
-        _modelica_ast_node(
-            "import",
-            import_name;
-            text = import_name,
-            line_start = line_start,
-            line_end = line_end,
-            metadata = import_metadata,
-        ),
-    )
-    return nothing
-end
-
-function _push_modelica_extend!(
-    state::ModelicaCollectionState,
-    extend_name::String;
-    line_start::Union{Nothing,Int} = nothing,
-    line_end::Union{Nothing,Int} = nothing,
-    metadata = Dict{String,Any}(),
-)
-    extend_metadata = Dict{String,Any}(metadata)
-    owner_key =
-        String(get(extend_metadata, "owner_path", get(extend_metadata, "owner_name", "")))
-    extend_key = (extend_name, owner_key)
-    extend_key in state.extend_set && return nothing
-    push!(state.extend_set, extend_key)
-    extend_entry = Dict{String,Any}(
-        "path" => extend_name,
-        "line_start" => line_start,
-        "line_end" => line_end,
-    )
-    merge!(extend_entry, extend_metadata)
-    push!(state.extends, extend_entry)
-    extend_metadata["path"] = extend_name
-    push!(
-        state.nodes,
-        _modelica_ast_node(
-            "extends",
-            extend_name;
-            text = extend_name,
-            line_start = line_start,
-            line_end = line_end,
-            metadata = extend_metadata,
-        ),
-    )
-    return nothing
-end
-
 function _push_modelica_symbol!(
     state::ModelicaCollectionState,
     symbol_name::String,
@@ -559,25 +495,6 @@ function _maybe_push_modelica_comment!(
         metadata = metadata,
     )
     return nothing
-end
-
-function _modelica_ast_node(
-    node_kind::String,
-    name::String;
-    text::Union{Nothing,String} = nothing,
-    line_start::Union{Nothing,Int} = nothing,
-    line_end::Union{Nothing,Int} = nothing,
-    metadata = Dict{String,Any}(),
-)
-    return Dict{String,Any}(
-        "node_kind" => node_kind,
-        "name" => name,
-        "text" => text,
-        "line_start" => line_start,
-        "line_end" => line_end,
-        "signature" => text,
-        "metadata" => Dict{String,Any}(metadata),
-    )
 end
 
 function _modelica_restriction_name(restriction)

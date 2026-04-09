@@ -16,7 +16,7 @@ mutable struct JuliaCollectionState
     exports::Vector{Dict{String,Any}}
     export_set::Set{Tuple{String,String}}
     imports::Vector{Dict{String,Any}}
-    import_set::Set{Tuple{String,String}}
+    import_set::Set{NTuple{6,String}}
     symbols::Vector{Dict{String,Any}}
     symbol_set::Set{Tuple{String,String,String,Int,Int}}
     parameters::Vector{Dict{String,Any}}
@@ -33,7 +33,7 @@ function JuliaCollectionState()
         Dict{String,Any}[],
         Set{Tuple{String,String}}(),
         Dict{String,Any}[],
-        Set{Tuple{String,String}}(),
+        Set{NTuple{6,String}}(),
         Dict{String,Any}[],
         Set{Tuple{String,String,String,Int,Int}}(),
         Dict{String,Any}[],

@@ -1,3 +1,5 @@
 include("backend.jl")
+include("nodes.jl")
 include("collect.jl")
+include("dependencies.jl")
 include("summary.jl")

@@ -41,7 +41,7 @@ Current backend status:
    `lib/parser -> autoconf -> ./configure -> make`
 4. The current workspace lock pins `OMParser.jl` to
    `https://github.com/tao3k/OMParser.jl` at
-   `853c28d294339a611eaf60b08841ffb55b127db1` until the bootstrap fixes are
+   `cebc0696407385e52496608fcc13e95a556da3b5` until the bootstrap fixes are
    consumed upstream
 5. The current workspace lock pins `WendaoArrow.jl` to
    `https://github.com/tao3k/WendaoArrow.jl.git` at
@@ -81,19 +81,25 @@ Parser layout note:
 5. `src/parsers/julia/emit.jl` owns Julia summary and AST row emission helpers
 6. `src/parsers/julia/syntax.jl` owns `JuliaSyntax.SyntaxNode` inspection,
    naming, and line-span helpers
-7. `src/parsers/julia/functions.jl` owns parser-native Julia function-header
+7. `src/parsers/julia/dependencies.jl` owns Julia `import`, `using`,
+   `include`, and shared dependency normalization
+8. `src/parsers/julia/functions.jl` owns parser-native Julia function-header
    extraction such as arity, varargs, `where` clauses, and return annotations
-8. `src/parsers/julia/collect.jl` owns SyntaxNode traversal and Julia summary
+9. `src/parsers/julia/collect.jl` owns SyntaxNode traversal and Julia summary
    or AST state collection
-9. `src/parsers/modelica/backend.jl` now only owns the `OMParser.jl` native
+10. `src/parsers/modelica/backend.jl` now only owns the `OMParser.jl` native
    bridge and shared-library/runtime bootstrap
-10. `src/parsers/modelica/collect.jl` owns Modelica state collection, cache
-   lifecycle, expression normalization, and AST node materialization
-11. `src/parsers/modelica/summary.jl` owns Modelica summary shaping over the
+11. `src/parsers/modelica/nodes.jl` owns generic Modelica AST node
+    materialization
+12. `src/parsers/modelica/dependencies.jl` owns Modelica `import` / `extends`
+    emission plus shared dependency summary shaping
+13. `src/parsers/modelica/collect.jl` owns Modelica state collection, cache
+    lifecycle, expression normalization, and non-dependency AST traversal
+14. `src/parsers/modelica/summary.jl` owns Modelica summary shaping over the
    collected state
-12. `src/search/` consumes those language-owned state collectors instead of
+15. `src/search/` consumes those language-owned state collectors instead of
    reimplementing parser traversal logic
-13. `src/search/query/` now splits AST query parsing, node filtering, and
+16. `src/search/query/` now splits AST query parsing, node filtering, and
    match projection into focused files, so parser-side search semantics do not
    grow back into one flat query source
 
@@ -108,6 +114,9 @@ Contract note:
    `item_owner_name`, `item_owner_kind`, `item_owner_path`,
    `item_module_name`, `item_module_path`, `item_class_path`,
    `item_target_path`, `item_line_start`, `item_line_end`,
+   `item_dependency_kind`, `item_dependency_target`,
+   `item_dependency_parent`, `item_dependency_member`,
+   `item_dependency_alias`,
    `item_binding_kind`, `item_type_kind`, `item_is_partial`,
    `item_is_encapsulated`, `item_component_kind`,
    `item_array_dimensions`, `item_default_value`, `item_start_value`,
@@ -122,7 +131,10 @@ Contract note:
 4. AST responses return one `ast_match_rows` Arrow row per match, with fields
    such as `match_index`, `match_node_kind`, `match_name`, `match_text`,
    `match_signature`, `match_target_kind`, `match_module`, `match_path`,
-   `match_module_kind`, `match_owner_name`, `match_owner_kind`,
+   `match_module_kind`, `match_dependency_kind`, `match_dependency_target`,
+   `match_dependency_parent`, `match_dependency_member`,
+   `match_dependency_alias`,
+   `match_owner_name`, `match_owner_kind`,
    `match_owner_path`, `match_module_name`, `match_module_path`,
    `match_class_path`, `match_target_path`, `match_binding_kind`,
    `match_type_kind`, `match_function_positional_arity`,
@@ -155,23 +167,40 @@ Contract note:
    (`line_start` / `line_end`) from the bound declaration span
    (`target_line_start` / `target_line_end`), so search consumers do not need
    to guess which semantic the parser encoded
-10. Modelica documentation comments are normalized before they become summary
+10. Julia dependency rows now preserve parser-owned dependency semantics
+    through shared `dependency_kind`, `dependency_target`,
+    `dependency_parent`, `dependency_member`, and `dependency_alias`
+    fields, so `import`, `using`, and `include` can be queried through one
+    normalized dependency contract without replacing the existing
+    language-native groups
+11. Modelica documentation comments are normalized before they become summary
    items or AST nodes, so clients receive semantic content instead of raw
    `//`, `/*`, or `*` lexer markers
-11. the Modelica backend now keeps a bounded same-source parse-state cache in
+12. the Modelica backend now keeps a bounded same-source parse-state cache in
    the service process, keyed by exact `source_id` plus `source_text`, so
    repeated AST queries do not call `OMParser` again for unchanged input
-12. Modelica native summary rows now expose parser-side visibility, owner,
+13. Modelica native summary rows now expose parser-side visibility, owner,
    type-name, qualifier, equation, component-kind, array-dimension,
    default-value, modifier-name, start-value, and unit detail without
    widening into any Rust-side adapter work
-13. AST search now resolves `attribute_key` against parser-owned top-level node
+14. Modelica `import` and `extends` rows now also expose the same shared
+    `dependency_kind`, `dependency_target`, and named-import
+    `dependency_alias` detail used by Julia dependency rows, so parser-side
+    search can audit dependency semantics without re-deriving language-specific
+    targets in `src/search/`
+15. Modelica named imports now also expose parser-owned `dependency_alias`
+    detail, while grouped imports are still outside the current package
+    contract because the upstream native parser bridge is not yet stable on
+    that input shape
+16. AST search now resolves `attribute_key` against parser-owned top-level node
    fields first and then against parser-owned `metadata`, so search can reuse
    native provider detail instead of inventing parallel search-only schema
-14. parser-native AST search can now query Julia attributes such as
+17. parser-native AST search can now query Julia attributes such as
    `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
    `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
-   `path`, `function_positional_arity`, `function_keyword_arity`,
+   `path`, `dependency_kind`, `dependency_target`,
+   `dependency_parent`, `dependency_member`, `dependency_alias`,
+   `function_positional_arity`, `function_keyword_arity`,
    `function_has_varargs`, `function_where_params`, or
    `function_return_type`, `function_positional_params`,
    `function_keyword_params`, `function_defaulted_params`,
@@ -180,18 +209,20 @@ Contract note:
    `parameter_type_name`, `parameter_default_value`,
    `parameter_is_typed`, `parameter_is_defaulted`, or
    `parameter_is_vararg`, and Modelica attributes such as
-   `owner_name`, `owner_path`, `class_path`, `visibility`, `type_name`,
+   `owner_name`, `owner_path`, `class_path`, `dependency_kind`,
+   `dependency_target`, `dependency_alias`, `visibility`, `type_name`,
    `variability`, `direction`, `component_kind`, `array_dimensions`,
    `default_value`, `start_value`, `modifier_names`, `unit`,
    `restriction`, `is_partial`, `is_final`, or `is_encapsulated`
-15. scoped parser ownership now participates in dedup: repeated short names in
+18. scoped parser ownership now participates in dedup: repeated short names in
    different Julia modules or different Modelica class scopes are preserved as
    distinct AST nodes instead of being collapsed globally
-16. package tests are now split under `test/support/` and `test/cases/`, so
+19. package tests are now split under `test/support/` and `test/cases/`, so
    `test/runtests.jl` stays as a small runner instead of a monolithic file
-17. parser-specific Flight round-trip coverage is now isolated in
+20. parser-specific Flight round-trip coverage is now isolated in
    `test/cases/flight_native_columns.jl`, and mounted shared-service parser
-   regressions are isolated in `WendaoSearch.jl/test/integration/live_code_parser.jl`
+   regressions are isolated under `WendaoSearch.jl/test/integration/`,
+   including `live_code_parser.jl` and `live_dependency_semantics.jl`
 
 The package also ships a focused helper for prebuilding the Modelica backend:
 

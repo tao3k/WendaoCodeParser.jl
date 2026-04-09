@@ -41,6 +41,26 @@ function _parser_summary_response_rows(response::ParserResponse)
                     item_target_kind = _parser_summary_item_text(item, "target_kind"),
                     item_module = _parser_summary_item_text(item, "module"),
                     item_path = _parser_summary_item_text(item, "path"),
+                    item_dependency_kind = _parser_summary_item_text(
+                        item,
+                        "dependency_kind",
+                    ),
+                    item_dependency_target = _parser_summary_item_text(
+                        item,
+                        "dependency_target",
+                    ),
+                    item_dependency_parent = _parser_summary_item_text(
+                        item,
+                        "dependency_parent",
+                    ),
+                    item_dependency_member = _parser_summary_item_text(
+                        item,
+                        "dependency_member",
+                    ),
+                    item_dependency_alias = _parser_summary_item_text(
+                        item,
+                        "dependency_alias",
+                    ),
                     item_content = _parser_summary_item_text(item, "content"),
                     item_reexported = _parser_summary_item_bool(item, "reexported"),
                     item_visibility = _parser_summary_item_text(item, "visibility"),
@@ -164,6 +184,11 @@ function _parser_empty_summary_item_row()
         item_target_kind = missing,
         item_module = missing,
         item_path = missing,
+        item_dependency_kind = missing,
+        item_dependency_target = missing,
+        item_dependency_parent = missing,
+        item_dependency_member = missing,
+        item_dependency_alias = missing,
         item_content = missing,
         item_reexported = missing,
         item_visibility = missing,

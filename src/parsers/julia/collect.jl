@@ -124,29 +124,6 @@ function _collect_julia_export!(
     return nothing
 end
 
-function _collect_julia_import!(
-    node,
-    state::JuliaCollectionState,
-    source::String,
-    line_starts::Vector{Int};
-    reexported::Bool = false,
-    context::JuliaScopeContext = JuliaScopeContext(),
-)
-    line_start, line_end = _julia_line_span(node, line_starts)
-    import_modules = _julia_import_modules(node, source)
-    for import_name in import_modules
-        _push_import!(
-            state,
-            import_name,
-            line_start,
-            line_end;
-            reexported = reexported,
-            context = context,
-        )
-    end
-    return nothing
-end
-
 function _collect_julia_macrocall!(
     node,
     state::JuliaCollectionState,
@@ -201,21 +178,6 @@ function _collect_julia_macro_definition!(
         line_end,
         context,
     )
-    return nothing
-end
-
-function _collect_julia_include!(
-    node,
-    state::JuliaCollectionState,
-    source::String,
-    line_starts::Vector{Int},
-    context::JuliaScopeContext,
-)
-    _is_julia_include_call(node, source) || return nothing
-    include_path = _julia_include_path(node, source)
-    isnothing(include_path) && return nothing
-    line_start, line_end = _julia_line_span(node, line_starts)
-    _push_include!(state, something(include_path), line_start, line_end, context)
     return nothing
 end
 

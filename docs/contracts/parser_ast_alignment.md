@@ -121,8 +121,9 @@ Current Julia summary groups:
 1. `export`
 2. `import`
 3. `symbol`
-4. `docstring`
-5. `include`
+4. `parameter`
+5. `docstring`
+6. `include`
 
 Current Julia AST node kinds:
 
@@ -178,6 +179,14 @@ Current native Julia detail coverage:
     `parameter_type_name`, `parameter_default_value`,
     `parameter_is_typed`, `parameter_is_defaulted`,
     `parameter_is_vararg`, and method-level `target_path`
+16. shared dependency detail is now normalized through `dependency_kind`,
+    `dependency_target`, `dependency_parent`, `dependency_member`, and
+    `dependency_alias`, so parser-owned dependency semantics stay queryable
+    across `import`, `using`, and `include` without introducing a search-only
+    schema
+17. Julia dependency rows now retain native selective-import and alias
+    semantics such as `import CSV: read as rd` and `using DataFrames:
+    DataFrame`, instead of collapsing them into one flat dependency string
 
 Current Modelica summary groups:
 
@@ -205,6 +214,13 @@ Current native Modelica summary detail columns:
    summary columns such as `item_owner_kind`, `item_owner_path`,
    `item_module_name`, `item_module_path`, `item_class_path`, and
    `item_target_path`
+8. shared dependency detail is now normalized through `dependency_kind`,
+   `dependency_target`, and `dependency_alias`, so Modelica `import` and
+   `extends` rows align with the Julia dependency contract without erasing
+   language-native groups
+9. current Modelica import alignment covers named imports and qualified
+   imports; grouped imports are not yet part of the package contract because
+   the upstream native parser bridge is not stable on that input in this lane
 
 Current Modelica AST node kinds:
 
@@ -237,13 +253,16 @@ Current native AST query resolution rules:
 3. Julia search can therefore filter directly on provider-owned attributes such
    as `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
    `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
-   `binding_kind`, `type_kind`, `module_kind`,
+   `binding_kind`, `type_kind`, `module_kind`, `dependency_kind`,
+   `dependency_target`, `dependency_parent`, `dependency_member`,
+   `dependency_alias`,
    `function_positional_arity`, `function_keyword_arity`,
    `function_has_varargs`, `function_where_params`, and
    `function_return_type`
 4. Modelica search can therefore filter directly on provider-owned attributes
-   such as `owner_name`, `owner_path`, `class_path`, `visibility`,
-   `type_name`, `variability`, `direction`, `component_kind`,
+   such as `owner_name`, `owner_path`, `class_path`, `dependency_kind`,
+   `dependency_target`, `dependency_alias`, `visibility`, `type_name`,
+   `variability`, `direction`, `component_kind`,
    `array_dimensions`, `default_value`, `start_value`, `modifier_names`,
    `unit`, `restriction`, `is_partial`, `is_final`, and `is_encapsulated`
 5. AST match rows now also project parser-owned structural fields into stable

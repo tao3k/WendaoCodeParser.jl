@@ -28,33 +28,7 @@ end
 
 function _modelica_summary_items(state::ModelicaCollectionState)
     items = Dict{String,Any}[]
-    append!(
-        items,
-        [
-            Dict(
-                "group" => "import",
-                "name" => String(entry["module"]),
-                "module" => String(entry["module"]),
-                "owner_name" => get(entry, "owner_name", nothing),
-                "owner_path" => get(entry, "owner_path", nothing),
-                "line_start" => get(entry, "line_start", nothing),
-                "line_end" => get(entry, "line_end", nothing),
-            ) for entry in state.imports
-        ],
-    )
-    append!(
-        items,
-        [
-            Dict(
-                "group" => "extend",
-                "path" => String(entry["path"]),
-                "owner_name" => get(entry, "owner_name", nothing),
-                "owner_path" => get(entry, "owner_path", nothing),
-                "line_start" => get(entry, "line_start", nothing),
-                "line_end" => get(entry, "line_end", nothing),
-            ) for entry in state.extends
-        ],
-    )
+    append!(items, _modelica_dependency_summary_items(state))
     append!(
         items,
         [

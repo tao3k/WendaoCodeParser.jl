@@ -71,23 +71,7 @@ function _julia_summary_items(state::JuliaCollectionState)
             ) for entry in state.exports
         ],
     )
-    append!(
-        items,
-        [
-            Dict(
-                "group" => "import",
-                "module" => String(entry["module"]),
-                "reexported" => Bool(get(entry, "reexported", false)),
-                "owner_name" => get(entry, "owner_name", nothing),
-                "owner_kind" => get(entry, "owner_kind", nothing),
-                "module_name" => get(entry, "module_name", nothing),
-                "module_path" => get(entry, "module_path", nothing),
-                "owner_path" => get(entry, "owner_path", nothing),
-                "line_start" => get(entry, "line_start", nothing),
-                "line_end" => get(entry, "line_end", nothing),
-            ) for entry in state.imports
-        ],
-    )
+    append!(items, _julia_dependency_summary_items(state))
     append!(
         items,
         [
@@ -171,22 +155,6 @@ function _julia_summary_items(state::JuliaCollectionState)
                 "target_line_start" => get(entry, "target_line_start", nothing),
                 "target_line_end" => get(entry, "target_line_end", nothing),
             ) for entry in state.docstrings
-        ],
-    )
-    append!(
-        items,
-        [
-            Dict(
-                "group" => "include",
-                "path" => String(entry["path"]),
-                "owner_name" => get(entry, "owner_name", nothing),
-                "owner_kind" => get(entry, "owner_kind", nothing),
-                "module_name" => get(entry, "module_name", nothing),
-                "module_path" => get(entry, "module_path", nothing),
-                "owner_path" => get(entry, "owner_path", nothing),
-                "line_start" => get(entry, "line_start", nothing),
-                "line_end" => get(entry, "line_end", nothing),
-            ) for entry in state.includes
         ],
     )
     return items
