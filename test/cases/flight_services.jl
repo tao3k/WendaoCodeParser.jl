@@ -12,12 +12,13 @@
     summary_columns = Tables.columntable(summary_table)
     @test all(summary_columns.success)
     @test unique(summary_columns.module_name) == ["Demo"]
+    @test unique(summary_columns.module_kind) == ["module"]
     @test Set(
         String[
             summary_columns.item_group[index] for
             index in eachindex(summary_columns.item_group)
         ],
-    ) == Set(["export", "import", "symbol", "docstring", "include"])
+    ) == Set(["export", "import", "symbol", "parameter", "docstring", "include"])
     @test Set(
         String[
             summary_columns.item_name[index] for
@@ -53,6 +54,7 @@
     @test query_columns.match_count == [1]
     @test query_columns.match_name == ["nested.jl"]
     @test query_columns.match_node_kind == ["include"]
+    @test hasproperty(query_columns, :match_module_kind)
     @test hasproperty(query_columns, :match_target_line_start)
     @test hasproperty(query_columns, :match_target_line_end)
 
@@ -82,6 +84,8 @@
     @test docstring_query_columns.match_line_end == [2]
     @test docstring_query_columns.match_target_line_start == [3]
     @test docstring_query_columns.match_target_line_end == [3]
+    @test hasproperty(docstring_query_columns, :match_attribute_key)
+    @test hasproperty(docstring_query_columns, :match_attribute_value)
 end
 
 @testset "Modelica Flight services round-trip summary response" begin
@@ -110,6 +114,9 @@ end
     @test unique(summary_columns.restriction) == ["model"]
     @test hasproperty(summary_columns, :item_visibility)
     @test hasproperty(summary_columns, :item_line_start)
+    @test hasproperty(summary_columns, :item_array_dimensions)
+    @test hasproperty(summary_columns, :item_start_value)
+    @test hasproperty(summary_columns, :item_modifier_names)
     @test Set(
         String[
             summary_columns.item_name[index] for
@@ -117,4 +124,68 @@ end
             summary_columns.item_group[index] == "symbol"
         ],
     ) == Set(["Demo", "x"])
+end
+
+@testset "Modelica Flight services expose component modifier details" begin
+    summary_service = build_parser_flight_service(MODELICA_FILE_SUMMARY_ROUTE)
+    summary_request = parser_exchange_request(
+        MODELICA_FILE_SUMMARY_ROUTE,
+        [
+            ParserRequest(
+                "req-8-modifiers",
+                "Modifiers.mo",
+                """
+                model Demo
+                  parameter Real x[3](unit="s", start=1) = 2;
+                end Demo;
+                """,
+            ),
+        ],
+    )
+    summary_table = WendaoCodeParser.WendaoArrow.flight_exchange_table(
+        summary_service,
+        WendaoCodeParser.WendaoArrow.Arrow.Flight.ServerCallContext(),
+        summary_request,
+    )
+    summary_columns = Tables.columntable(summary_table)
+    x_index = only(
+        index for index in eachindex(summary_columns.item_group) if
+        summary_columns.item_group[index] == "symbol" &&
+        summary_columns.item_name[index] == "x"
+    )
+    @test summary_columns.item_array_dimensions[x_index] == "[3]"
+    @test summary_columns.item_start_value[x_index] == "1"
+    @test summary_columns.item_modifier_names[x_index] == "unit,start"
+
+    query_service = build_parser_flight_service(MODELICA_AST_QUERY_ROUTE)
+    query_request = parser_exchange_request(
+        MODELICA_AST_QUERY_ROUTE,
+        [
+            ParserRequest(
+                "req-8-start-query",
+                "Modifiers.mo",
+                """
+                model Demo
+                  parameter Real x[3](unit="s", start=1) = 2;
+                end Demo;
+                """;
+                node_kind = "component",
+                attribute_key = "start_value",
+                attribute_equals = "1",
+                limit = 5,
+            ),
+        ],
+    )
+    query_table = WendaoCodeParser.WendaoArrow.flight_exchange_table(
+        query_service,
+        WendaoCodeParser.WendaoArrow.Arrow.Flight.ServerCallContext(),
+        query_request,
+    )
+    query_columns = Tables.columntable(query_table)
+    @test hasproperty(query_columns, :match_array_dimensions)
+    @test hasproperty(query_columns, :match_start_value)
+    @test hasproperty(query_columns, :match_modifier_names)
+    @test query_columns.match_name == ["x"]
+    @test query_columns.match_start_value == ["1"]
+    @test query_columns.match_modifier_names == ["unit,start"]
 end

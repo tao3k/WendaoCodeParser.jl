@@ -37,6 +37,11 @@ _optional_request_text(value) = ismissing(value) ? nothing : String(value)
 _optional_request_int(value) = ismissing(value) ? nothing : Int(value)
 supported_parser_route_names() = collect(PARSER_ROUTE_NAMES)
 
+function _optional_request_text(columns, column_name::Symbol, index::Int)
+    column_name in propertynames(columns) || return nothing
+    return _optional_request_text(getproperty(columns, column_name)[index])
+end
+
 function _parser_requests_for_route(route_name::Symbol, columns)
     if route_name == JULIA_AST_QUERY_ROUTE || route_name == MODELICA_AST_QUERY_ROUTE
         _parser_has_ast_query_columns(columns) ||
@@ -50,6 +55,22 @@ function _parser_requests_for_route(route_name::Symbol, columns)
                 name_equals = _optional_request_text(columns.name_equals[index]),
                 name_contains = _optional_request_text(columns.name_contains[index]),
                 text_contains = _optional_request_text(columns.text_contains[index]),
+                signature_contains = _optional_request_text(
+                    columns,
+                    :signature_contains,
+                    index,
+                ),
+                attribute_key = _optional_request_text(columns, :attribute_key, index),
+                attribute_equals = _optional_request_text(
+                    columns,
+                    :attribute_equals,
+                    index,
+                ),
+                attribute_contains = _optional_request_text(
+                    columns,
+                    :attribute_contains,
+                    index,
+                ),
                 limit = _optional_request_int(columns.limit[index]),
             ) for index = 1:length(columns.request_id)
         ]

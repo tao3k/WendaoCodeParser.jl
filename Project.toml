@@ -19,8 +19,8 @@ Absyn = { url = "https://github.com/OpenModelica/Absyn.jl", rev = "master" }
 ImmutableList = { url = "https://github.com/OpenModelica/ImmutableList.jl", rev = "master" }
 JuliaSyntax = { url = "https://github.com/JuliaLang/JuliaSyntax.jl", rev = "main" }
 MetaModelica = { url = "https://github.com/OpenModelica/MetaModelica.jl", rev = "master" }
-OMParser = { url = "https://github.com/tao3k/OMParser.jl", rev = "853c28d294339a611eaf60b08841ffb55b127db1" }
-WendaoArrow = { path = "../WendaoArrow.jl" }
+OMParser = { url = "https://github.com/tao3k/OMParser.jl", rev = "cebc0696407385e52496608fcc13e95a556da3b5" }
+WendaoArrow = { url = "https://github.com/tao3k/WendaoArrow.jl.git", rev = "334615136a8b68f18eedc614e0cc5ad33494ecc8" }
 
 [compat]
 Absyn = "1.3"

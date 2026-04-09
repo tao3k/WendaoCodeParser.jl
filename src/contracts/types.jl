@@ -6,6 +6,10 @@ struct ParserRequest
     name_equals::Union{Nothing,String}
     name_contains::Union{Nothing,String}
     text_contains::Union{Nothing,String}
+    signature_contains::Union{Nothing,String}
+    attribute_key::Union{Nothing,String}
+    attribute_equals::Union{Nothing,String}
+    attribute_contains::Union{Nothing,String}
     limit::Union{Nothing,Int}
 end
 
@@ -17,6 +21,10 @@ function ParserRequest(
     name_equals = nothing,
     name_contains = nothing,
     text_contains = nothing,
+    signature_contains = nothing,
+    attribute_key = nothing,
+    attribute_equals = nothing,
+    attribute_contains = nothing,
     limit = nothing,
 )
     normalized_limit = isnothing(limit) ? nothing : Int(limit)
@@ -28,6 +36,10 @@ function ParserRequest(
         isnothing(name_equals) ? nothing : String(name_equals),
         isnothing(name_contains) ? nothing : String(name_contains),
         isnothing(text_contains) ? nothing : String(text_contains),
+        isnothing(signature_contains) ? nothing : String(signature_contains),
+        isnothing(attribute_key) ? nothing : String(attribute_key),
+        isnothing(attribute_equals) ? nothing : String(attribute_equals),
+        isnothing(attribute_contains) ? nothing : String(attribute_contains),
         normalized_limit,
     )
 end

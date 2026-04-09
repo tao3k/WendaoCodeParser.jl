@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+      - "!dependabot/**"
+    tags:
+      - "**"
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.nthreads }} threads - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - "1.12"
+          - "pre"
+        os:
+          - ubuntu-latest
+          - macos-latest
+        nthreads:
+          - 1
+          - 2
+    steps:
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+      - uses: actions/cache@v5
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - name: Install source build toolchain (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool pkg-config
+      - name: Install source build toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install autoconf automake libtool pkg-config
+      - name: Bootstrap registries
+        shell: julia --project=. {0}
+        run: |
+          using Pkg
+
+          function ensure_registry(name::String; spec=nothing)
+              registries = Pkg.Registry.reachable_registries()
+              any(registry -> registry.name == name, registries) && return
+              if isnothing(spec)
+                  Pkg.Registry.add(name)
+              else
+                  Pkg.Registry.add(spec)
+              end
+          end
+
+          ensure_registry("General")
+          ensure_registry(
+              "OpenModelica";
+              spec=Pkg.RegistrySpec(url="https://github.com/JKRT/OpenModelicaRegistry.git"),
+          )
+      - uses: julia-actions/julia-buildpkg@v1.6
+        with:
+          project: .
+      - uses: julia-actions/julia-runtest@v1
+        env:
+          JULIA_NUM_THREADS: ${{ matrix.nthreads }}
+        with:
+          project: .

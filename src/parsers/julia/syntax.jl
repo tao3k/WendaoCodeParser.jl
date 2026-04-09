@@ -59,7 +59,7 @@ function _julia_string_content(node, source::String)
 end
 
 function _julia_doc_target(node, source::String)
-    if _julia_kind_name(node) == "module"
+    if _julia_kind_name(node) == "module" || _julia_kind_name(node) == "module-bare"
         name = _julia_first_identifier_text(node, source)
         isnothing(name) || return (name = something(name), target_kind = "module")
         return nothing
@@ -75,6 +75,14 @@ function _julia_symbol_name(node, source::String)
         return _julia_node_text(node, source)
     elseif node_kind == "function"
         return _julia_function_name(node, source)
+    elseif node_kind == "macro"
+        return _julia_macro_definition_name(node, source)
+    elseif node_kind == "const" || node_kind == "global"
+        return _julia_binding_name(node, source)
+    elseif node_kind == "="
+        first_child = _julia_first_nontrivia_child(node)
+        isnothing(first_child) && return nothing
+        return _julia_symbol_name(first_child, source)
     elseif node_kind == "call"
         first_child = _julia_first_nontrivia_child(node)
         isnothing(first_child) && return nothing
@@ -86,9 +94,11 @@ function _julia_symbol_name(node, source::String)
     elseif node_kind == "."
         return _julia_dotted_name(node, source)
     elseif node_kind == "struct" ||
+           node_kind == "struct-mut" ||
            node_kind == "abstract" ||
            node_kind == "primitive" ||
-           node_kind == "module"
+           node_kind == "module" ||
+           node_kind == "module-bare"
         return _julia_first_identifier_text(node, source)
     end
     return nothing

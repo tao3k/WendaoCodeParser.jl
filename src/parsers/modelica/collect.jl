@@ -1,10 +1,10 @@
 mutable struct ModelicaCollectionState
     primary_class::Union{Nothing,String}
     restriction::Union{Nothing,String}
-    imports::Vector{String}
-    import_set::Set{String}
-    extends::Vector{String}
-    extend_set::Set{String}
+    imports::Vector{Dict{String,Any}}
+    import_set::Set{Tuple{String,String}}
+    extends::Vector{Dict{String,Any}}
+    extend_set::Set{Tuple{String,String}}
     symbols::Vector{Dict{String,Any}}
     symbol_set::Set{Tuple{String,String,String}}
     documentation::Vector{String}
@@ -16,10 +16,10 @@ function ModelicaCollectionState()
     return ModelicaCollectionState(
         nothing,
         nothing,
-        String[],
-        Set{String}(),
-        String[],
-        Set{String}(),
+        Dict{String,Any}[],
+        Set{Tuple{String,String}}(),
+        Dict{String,Any}[],
+        Set{Tuple{String,String}}(),
         Dict{String,Any}[],
         Set{Tuple{String,String,String}}(),
         String[],
@@ -85,15 +85,18 @@ function _collect_modelica_class!(
     top_level::Bool,
     visibility::String = "public",
     owner_name::Union{Nothing,String} = nothing,
+    owner_path::Union{Nothing,String} = nothing,
 )
     restriction = _modelica_restriction_name(class_.restriction)
     class_name = String(class_.name)
+    class_path = isnothing(owner_path) ? class_name : "$(owner_path).$(class_name)"
     if top_level && isnothing(state.primary_class)
         state.primary_class = class_name
         state.restriction = restriction
     end
     class_metadata = Dict{String,Any}(
         "restriction" => restriction,
+        "class_path" => class_path,
         "top_level" => top_level,
         "visibility" => visibility,
         "is_partial" => Bool(class_.partialPrefix),
@@ -101,6 +104,7 @@ function _collect_modelica_class!(
         "is_encapsulated" => Bool(class_.encapsulatedPrefix),
     )
     isnothing(owner_name) || (class_metadata["owner_name"] = owner_name)
+    isnothing(owner_path) || (class_metadata["owner_path"] = owner_path)
     _push_modelica_symbol!(
         state,
         class_name,
@@ -110,33 +114,61 @@ function _collect_modelica_class!(
         line_end = _line_end(class_.info),
         metadata = class_metadata,
     )
-    _collect_modelica_class_body!(state, class_name, class_.body, source_text)
+    _collect_modelica_class_body!(state, class_name, class_path, class_.body, source_text)
     return nothing
 end
 
 function _collect_modelica_class_body!(
     state::ModelicaCollectionState,
     class_name::String,
+    class_path::String,
     body::Absyn.ClassDef,
     source_text::AbstractString,
 )
     if body isa Absyn.PARTS
         for class_part in body.classParts
-            _collect_modelica_class_part!(state, class_name, class_part, source_text)
+            _collect_modelica_class_part!(
+                state,
+                class_name,
+                class_path,
+                class_part,
+                source_text,
+            )
         end
     elseif body isa Absyn.CLASS_EXTENDS
-        _push_modelica_extend!(state, String(body.baseClassName))
+        _push_modelica_extend!(
+            state,
+            String(body.baseClassName);
+            metadata = Dict{String,Any}(
+                "owner_name" => class_name,
+                "owner_path" => class_path,
+                "class_path" => class_path,
+            ),
+        )
         for class_part in body.parts
-            _collect_modelica_class_part!(state, class_name, class_part, source_text)
+            _collect_modelica_class_part!(
+                state,
+                class_name,
+                class_path,
+                class_part,
+                source_text,
+            )
         end
     end
-    _maybe_push_modelica_documentation!(state, body)
+    _maybe_push_modelica_documentation!(
+        state,
+        body;
+        owner_name = class_name,
+        owner_path = class_path,
+        class_path = class_path,
+    )
     return nothing
 end
 
 function _collect_modelica_class_part!(
     state::ModelicaCollectionState,
     class_name::String,
+    class_path::String,
     class_part::Absyn.ClassPart,
     source_text::AbstractString,
 )
@@ -149,10 +181,17 @@ function _collect_modelica_class_part!(
                 source_text;
                 visibility = visibility,
                 owner_name = class_name,
+                owner_path = class_path,
             )
         end
     elseif class_part isa Absyn.EQUATIONS
-        _collect_modelica_equations!(state, class_name, class_part.contents, source_text)
+        _collect_modelica_equations!(
+            state,
+            class_name,
+            class_path,
+            class_part.contents,
+            source_text,
+        )
     end
     return nothing
 end
@@ -163,6 +202,7 @@ function _collect_modelica_element_item!(
     source_text::AbstractString;
     visibility::String,
     owner_name::String,
+    owner_path::String,
 )
     if element_item isa Absyn.ELEMENTITEM
         _collect_modelica_element!(
@@ -171,9 +211,18 @@ function _collect_modelica_element_item!(
             source_text;
             visibility = visibility,
             owner_name = owner_name,
+            owner_path = owner_path,
         )
     elseif element_item isa Absyn.LEXER_COMMENT
-        _push_modelica_documentation!(state, String(element_item.comment))
+        _push_modelica_documentation!(
+            state,
+            String(element_item.comment);
+            metadata = Dict{String,Any}(
+                "owner_name" => owner_name,
+                "owner_path" => owner_path,
+                "class_path" => owner_path,
+            ),
+        )
     end
     return nothing
 end
@@ -184,6 +233,7 @@ function _collect_modelica_element!(
     source_text::AbstractString;
     visibility::String,
     owner_name::String,
+    owner_path::String,
 )
     element isa Absyn.ELEMENT || return nothing
     spec = element.specification
@@ -194,6 +244,7 @@ function _collect_modelica_element!(
             element.info;
             visibility = visibility,
             owner_name = owner_name,
+            owner_path = owner_path,
         )
     elseif spec isa Absyn.CLASSDEF
         _collect_modelica_class!(
@@ -203,6 +254,7 @@ function _collect_modelica_element!(
             top_level = false,
             visibility = visibility,
             owner_name = owner_name,
+            owner_path = owner_path,
         )
     elseif spec isa Absyn.IMPORT
         _push_modelica_import!(
@@ -210,6 +262,11 @@ function _collect_modelica_element!(
             _modelica_import_name(spec.import_);
             line_start = _line_start(spec.info),
             line_end = _line_end(spec.info),
+            metadata = Dict{String,Any}(
+                "owner_name" => owner_name,
+                "owner_path" => owner_path,
+                "class_path" => owner_path,
+            ),
         )
     elseif spec isa Absyn.EXTENDS
         _push_modelica_extend!(
@@ -217,9 +274,20 @@ function _collect_modelica_element!(
             _modelica_path_string(spec.path);
             line_start = _line_start(element.info),
             line_end = _line_end(element.info),
+            metadata = Dict{String,Any}(
+                "owner_name" => owner_name,
+                "owner_path" => owner_path,
+                "class_path" => owner_path,
+            ),
         )
     end
-    _maybe_push_modelica_comment!(state, spec)
+    _maybe_push_modelica_comment!(
+        state,
+        spec;
+        owner_name = owner_name,
+        owner_path = owner_path,
+        class_path = owner_path,
+    )
     return nothing
 end
 
@@ -230,6 +298,7 @@ function _collect_modelica_components!(
     ;
     visibility::String,
     owner_name::String,
+    owner_path::String,
 )
     type_name = _modelica_type_spec_string(spec.typeSpec)
     variability = _modelica_variability_name(spec.attributes.variability)
@@ -238,7 +307,10 @@ function _collect_modelica_components!(
         component = component_item.component
         component_name = String(component.name)
         component_kind = _modelica_component_kind(variability, direction)
+        array_dimensions = _modelica_component_array_dimensions(component, spec)
         default_value = _modelica_component_default_value(component)
+        start_value = _modelica_component_start_value(component)
+        modifier_names = _modelica_component_modifier_names(component)
         unit = _modelica_component_unit(component)
         signature =
             _modelica_component_signature(type_name, component_name, variability, direction)
@@ -254,13 +326,24 @@ function _collect_modelica_components!(
                 "variability" => variability,
                 "direction" => direction,
                 "component_kind" => component_kind,
+                "array_dimensions" => array_dimensions,
                 "default_value" => default_value,
+                "start_value" => start_value,
+                "modifier_names" => modifier_names,
                 "unit" => unit,
                 "visibility" => visibility,
                 "owner_name" => owner_name,
+                "owner_path" => owner_path,
+                "class_path" => owner_path,
             ),
         )
-        _maybe_push_modelica_comment!(state, component_item)
+        _maybe_push_modelica_comment!(
+            state,
+            component_item;
+            owner_name = owner_name,
+            owner_path = owner_path,
+            class_path = owner_path,
+        )
     end
     return nothing
 end
@@ -268,6 +351,7 @@ end
 function _collect_modelica_equations!(
     state::ModelicaCollectionState,
     owner_name::String,
+    owner_path::String,
     contents,
     source_text::AbstractString,
 )
@@ -280,6 +364,8 @@ function _collect_modelica_equations!(
         isempty(equation_text) && continue
         equation_entry = Dict{String,Any}(
             "owner_name" => owner_name,
+            "owner_path" => owner_path,
+            "class_path" => owner_path,
             "text" => equation_text,
             "line_start" => line_start,
             "line_end" => line_end,
@@ -293,7 +379,11 @@ function _collect_modelica_equations!(
                 text = equation_text,
                 line_start = line_start,
                 line_end = line_end,
-                metadata = Dict{String,Any}("owner_name" => owner_name),
+                metadata = Dict{String,Any}(
+                    "owner_name" => owner_name,
+                    "owner_path" => owner_path,
+                    "class_path" => owner_path,
+                ),
             ),
         )
     end
@@ -305,10 +395,22 @@ function _push_modelica_import!(
     import_name::String;
     line_start::Union{Nothing,Int} = nothing,
     line_end::Union{Nothing,Int} = nothing,
+    metadata = Dict{String,Any}(),
 )
-    import_name in state.import_set && return nothing
-    push!(state.import_set, import_name)
-    push!(state.imports, import_name)
+    import_metadata = Dict{String,Any}(metadata)
+    owner_key =
+        String(get(import_metadata, "owner_path", get(import_metadata, "owner_name", "")))
+    import_key = (import_name, owner_key)
+    import_key in state.import_set && return nothing
+    push!(state.import_set, import_key)
+    import_entry = Dict{String,Any}(
+        "module" => import_name,
+        "line_start" => line_start,
+        "line_end" => line_end,
+    )
+    merge!(import_entry, import_metadata)
+    push!(state.imports, import_entry)
+    import_metadata["module"] = import_name
     push!(
         state.nodes,
         _modelica_ast_node(
@@ -317,7 +419,7 @@ function _push_modelica_import!(
             text = import_name,
             line_start = line_start,
             line_end = line_end,
-            metadata = Dict("module" => import_name),
+            metadata = import_metadata,
         ),
     )
     return nothing
@@ -328,10 +430,22 @@ function _push_modelica_extend!(
     extend_name::String;
     line_start::Union{Nothing,Int} = nothing,
     line_end::Union{Nothing,Int} = nothing,
+    metadata = Dict{String,Any}(),
 )
-    extend_name in state.extend_set && return nothing
-    push!(state.extend_set, extend_name)
-    push!(state.extends, extend_name)
+    extend_metadata = Dict{String,Any}(metadata)
+    owner_key =
+        String(get(extend_metadata, "owner_path", get(extend_metadata, "owner_name", "")))
+    extend_key = (extend_name, owner_key)
+    extend_key in state.extend_set && return nothing
+    push!(state.extend_set, extend_key)
+    extend_entry = Dict{String,Any}(
+        "path" => extend_name,
+        "line_start" => line_start,
+        "line_end" => line_end,
+    )
+    merge!(extend_entry, extend_metadata)
+    push!(state.extends, extend_entry)
+    extend_metadata["path"] = extend_name
     push!(
         state.nodes,
         _modelica_ast_node(
@@ -340,7 +454,7 @@ function _push_modelica_extend!(
             text = extend_name,
             line_start = line_start,
             line_end = line_end,
-            metadata = Dict("path" => extend_name),
+            metadata = extend_metadata,
         ),
     )
     return nothing
@@ -355,7 +469,7 @@ function _push_modelica_symbol!(
     line_end::Union{Nothing,Int} = nothing,
     metadata = Dict{String,Any}(),
 )
-    owner_key = get(metadata, "owner_name", "")
+    owner_key = get(metadata, "owner_path", get(metadata, "owner_name", ""))
     symbol_key = (symbol_name, node_kind, String(owner_key))
     symbol_key in state.symbol_set && return nothing
     push!(state.symbol_set, symbol_key)
@@ -383,17 +497,23 @@ function _push_modelica_symbol!(
     return nothing
 end
 
-function _push_modelica_documentation!(state::ModelicaCollectionState, value::String)
+function _push_modelica_documentation!(
+    state::ModelicaCollectionState,
+    value::String;
+    metadata = Dict{String,Any}(),
+)
     normalized_value = String(_normalize_modelica_documentation(value))
     isempty(normalized_value) && return nothing
     push!(state.documentation, normalized_value)
+    node_metadata = Dict{String,Any}(metadata)
+    node_metadata["content"] = normalized_value
     push!(
         state.nodes,
         _modelica_ast_node(
             "documentation",
             normalized_value;
             text = normalized_value,
-            metadata = Dict{String,Any}("content" => normalized_value),
+            metadata = node_metadata,
         ),
     )
     return nothing
@@ -402,21 +522,41 @@ end
 function _maybe_push_modelica_documentation!(
     state::ModelicaCollectionState,
     body::Absyn.ClassDef,
+    ;
+    owner_name::Union{Nothing,String} = nothing,
+    owner_path::Union{Nothing,String} = nothing,
+    class_path::Union{Nothing,String} = nothing,
 )
     if hasproperty(body, :comment)
+        metadata = Dict{String,Any}()
+        isnothing(owner_name) || (metadata["owner_name"] = owner_name)
+        isnothing(owner_path) || (metadata["owner_path"] = owner_path)
+        isnothing(class_path) || (metadata["class_path"] = class_path)
         _push_modelica_documentation!(
             state,
-            _modelica_option_string(getproperty(body, :comment)),
+            _modelica_option_string(getproperty(body, :comment));
+            metadata = metadata,
         )
     end
     return nothing
 end
 
-function _maybe_push_modelica_comment!(state::ModelicaCollectionState, value)
+function _maybe_push_modelica_comment!(
+    state::ModelicaCollectionState,
+    value;
+    owner_name::Union{Nothing,String} = nothing,
+    owner_path::Union{Nothing,String} = nothing,
+    class_path::Union{Nothing,String} = nothing,
+)
     hasproperty(value, :comment) || return nothing
+    metadata = Dict{String,Any}()
+    isnothing(owner_name) || (metadata["owner_name"] = owner_name)
+    isnothing(owner_path) || (metadata["owner_path"] = owner_path)
+    isnothing(class_path) || (metadata["class_path"] = class_path)
     _push_modelica_documentation!(
         state,
-        _modelica_option_string(getproperty(value, :comment)),
+        _modelica_option_string(getproperty(value, :comment));
+        metadata = metadata,
     )
     return nothing
 end
@@ -533,25 +673,92 @@ function _modelica_component_default_value(component)
     return _modelica_expression_string(expression)
 end
 
+function _modelica_component_start_value(component)
+    modifier_entries = _modelica_component_modifier_entries(component)
+    return _modelica_component_modifier_value(modifier_entries, "start")
+end
+
+function _modelica_component_modifier_names(component)
+    modifier_entries = _modelica_component_modifier_entries(component)
+    isempty(modifier_entries) && return nothing
+    return join(first.(modifier_entries), ",")
+end
+
 function _modelica_component_unit(component)
     classmod = _modelica_component_classmod(component)
     isnothing(classmod) && return nothing
-    for element_arg in collect(getproperty(classmod, :elementArgLst))
-        element_arg isa Absyn.MODIFICATION || continue
-        path_name = _modelica_path_string(getproperty(element_arg, :path))
-        path_name == "unit" || continue
-        nested_classmod = _modelica_option_data(getproperty(element_arg, :modification))
-        isnothing(nested_classmod) && continue
-        expression = _modelica_eqmod_expression(getproperty(nested_classmod, :eqMod))
-        isnothing(expression) && continue
-        return _modelica_expression_string(expression; unquote_strings = true)
-    end
-    return nothing
+    modifier_entries =
+        _modelica_component_modifier_entries(component; unquote_strings = true)
+    return _modelica_component_modifier_value(modifier_entries, "unit")
 end
 
 function _modelica_component_classmod(component)
     hasproperty(component, :modification) || return nothing
     return _modelica_option_data(getproperty(component, :modification))
+end
+
+function _modelica_component_array_dimensions(component, spec)
+    dimensions = String[]
+    append!(
+        dimensions,
+        _modelica_array_dimension_entries(getproperty(component, :arrayDim)),
+    )
+    if hasproperty(spec, :attributes) && hasproperty(spec.attributes, :arrayDim)
+        append!(
+            dimensions,
+            _modelica_array_dimension_entries(getproperty(spec.attributes, :arrayDim)),
+        )
+    end
+    isempty(dimensions) && return nothing
+    return "[" * join(dimensions, ", ") * "]"
+end
+
+function _modelica_array_dimension_entries(array_dim)
+    entries = String[]
+    for subscript in collect(array_dim)
+        value = _modelica_subscript_string(subscript)
+        isnothing(value) && continue
+        push!(entries, value)
+    end
+    return entries
+end
+
+function _modelica_subscript_string(subscript)
+    subscript isa Absyn.NOSUB && return ":"
+    subscript isa Absyn.SUBSCRIPT || return nothing
+    expression = getproperty(subscript, :subscript)
+    isnothing(expression) && return nothing
+    return _modelica_expression_string(expression; unquote_strings = true)
+end
+
+function _modelica_component_modifier_entries(component; unquote_strings::Bool = false)
+    classmod = _modelica_component_classmod(component)
+    isnothing(classmod) && return Pair{String,String}[]
+    entries = Pair{String,String}[]
+    for element_arg in collect(getproperty(classmod, :elementArgLst))
+        element_arg isa Absyn.MODIFICATION || continue
+        path_name = _modelica_path_string(getproperty(element_arg, :path))
+        nested_classmod = _modelica_option_data(getproperty(element_arg, :modification))
+        isnothing(nested_classmod) && continue
+        expression = _modelica_eqmod_expression(getproperty(nested_classmod, :eqMod))
+        isnothing(expression) && continue
+        push!(
+            entries,
+            path_name =>
+                _modelica_expression_string(expression; unquote_strings = unquote_strings),
+        )
+    end
+    return entries
+end
+
+function _modelica_component_modifier_value(
+    modifier_entries::Vector{Pair{String,String}},
+    expected_key::String,
+)
+    for entry in modifier_entries
+        first(entry) == expected_key && return last(entry)
+    end
+    return nothing
 end
 
 function _modelica_option_data(value)

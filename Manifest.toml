@@ -2,7 +2,7 @@
 
 julia_version = "1.12.5"
 manifest_format = "2.0"
-project_hash = "cb16c65ca36bff057501abd3c4db19506321c584"
+project_hash = "ffac0a5da8193ed794f9169dfff9cf5ae5d39a59"
 
 [[deps.Absyn]]
 deps = ["ExportAll", "MetaModelica", "Pkg"]
@@ -397,8 +397,8 @@ version = "1.3.0"
 
 [[deps.OMParser]]
 deps = ["Absyn", "CodecZlib", "ExportAll", "Glob", "HTTP", "ImmutableList", "Inflate", "MacroTools", "MetaModelica", "Pkg", "Tar", "TarIterators", "ZipFile"]
-git-tree-sha1 = "8bd15c08c88ad4d734936fbd5a9472cf9f6eddb2"
-repo-rev = "853c28d294339a611eaf60b08841ffb55b127db1"
+git-tree-sha1 = "45903025d96869ea59d6e85a0bae9b5dcf6858a1"
+repo-rev = "cebc0696407385e52496608fcc13e95a556da3b5"
 repo-url = "https://github.com/tao3k/OMParser.jl"
 uuid = "11f87224-cae7-4e99-a924-e50d12f62c59"
 version = "0.0.3"
@@ -586,7 +586,9 @@ version = "1.11.0"
 
 [[deps.WendaoArrow]]
 deps = ["Arrow", "ArrowTypes", "Dates", "Logging", "TOML", "Tables"]
-path = "../WendaoArrow.jl"
+git-tree-sha1 = "e885c9e9ca183fa5be71d73061175cf8cbf76ca0"
+repo-rev = "334615136a8b68f18eedc614e0cc5ad33494ecc8"
+repo-url = "https://github.com/tao3k/WendaoArrow.jl.git"
 uuid = "561c8d8d-4bcf-4807-873b-a6b7d1e55843"
 version = "0.1.0"
 
@@ -597,7 +599,7 @@ version = "0.1.0"
     gRPCServer = "608c6337-0d7d-447f-bb69-0f5674ee3959"
 
 [[deps.WendaoCodeParser]]
-deps = ["Absyn", "ImmutableList", "JSON3", "JuliaSyntax", "Libdl", "Logging", "MetaModelica", "OMParser", "Tables", "WendaoArrow"]
+deps = ["Absyn", "ImmutableList", "JuliaSyntax", "Libdl", "Logging", "MetaModelica", "OMParser", "Tables", "WendaoArrow"]
 path = "."
 uuid = "f20f04df-04eb-4b3b-9fa2-a7e4ac8e000b"
 version = "0.1.0"

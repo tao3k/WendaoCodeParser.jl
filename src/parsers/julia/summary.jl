@@ -30,7 +30,10 @@ function _julia_summary_response(
         "JuliaSyntax.jl";
         success = true,
         primary_name = state.module_name,
-        summary_scalars = Dict("module_name" => state.module_name),
+        summary_scalars = Dict(
+            "module_name" => state.module_name,
+            "module_kind" => state.module_kind,
+        ),
         summary_items = _julia_summary_items(state),
     )
 end
@@ -58,6 +61,11 @@ function _julia_summary_items(state::JuliaCollectionState)
             Dict(
                 "group" => "export",
                 "name" => String(entry["name"]),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_kind" => get(entry, "owner_kind", nothing),
+                "module_name" => get(entry, "module_name", nothing),
+                "module_path" => get(entry, "module_path", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
                 "line_start" => get(entry, "line_start", nothing),
                 "line_end" => get(entry, "line_end", nothing),
             ) for entry in state.exports
@@ -70,6 +78,11 @@ function _julia_summary_items(state::JuliaCollectionState)
                 "group" => "import",
                 "module" => String(entry["module"]),
                 "reexported" => Bool(get(entry, "reexported", false)),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_kind" => get(entry, "owner_kind", nothing),
+                "module_name" => get(entry, "module_name", nothing),
+                "module_path" => get(entry, "module_path", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
                 "line_start" => get(entry, "line_start", nothing),
                 "line_end" => get(entry, "line_end", nothing),
             ) for entry in state.imports
@@ -83,9 +96,60 @@ function _julia_summary_items(state::JuliaCollectionState)
                 "name" => String(entry["name"]),
                 "kind" => String(entry["kind"]),
                 "signature" => String(entry["signature"]),
+                "path" => get(entry, "path", nothing),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_kind" => get(entry, "owner_kind", nothing),
+                "module_name" => get(entry, "module_name", nothing),
+                "module_path" => get(entry, "module_path", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
+                "binding_kind" => get(entry, "binding_kind", nothing),
+                "type_kind" => get(entry, "type_kind", nothing),
+                "function_positional_arity" =>
+                    get(entry, "function_positional_arity", nothing),
+                "function_keyword_arity" => get(entry, "function_keyword_arity", nothing),
+                "function_has_varargs" => get(entry, "function_has_varargs", nothing),
+                "function_where_params" => get(entry, "function_where_params", nothing),
+                "function_return_type" => get(entry, "function_return_type", nothing),
+                "function_positional_params" =>
+                    get(entry, "function_positional_params", nothing),
+                "function_keyword_params" => get(entry, "function_keyword_params", nothing),
+                "function_defaulted_params" =>
+                    get(entry, "function_defaulted_params", nothing),
+                "function_typed_params" => get(entry, "function_typed_params", nothing),
+                "function_positional_vararg_name" =>
+                    get(entry, "function_positional_vararg_name", nothing),
+                "function_keyword_vararg_name" =>
+                    get(entry, "function_keyword_vararg_name", nothing),
                 "line_start" => get(entry, "line_start", nothing),
                 "line_end" => get(entry, "line_end", nothing),
             ) for entry in state.symbols
+        ],
+    )
+    append!(
+        items,
+        [
+            Dict(
+                "group" => "parameter",
+                "name" => String(entry["name"]),
+                "kind" => String(entry["kind"]),
+                "text" => String(entry["text"]),
+                "target_kind" => String(entry["target_kind"]),
+                "path" => get(entry, "path", nothing),
+                "parameter_kind" => get(entry, "parameter_kind", nothing),
+                "parameter_type_name" => get(entry, "parameter_type_name", nothing),
+                "parameter_default_value" => get(entry, "parameter_default_value", nothing),
+                "parameter_is_typed" => get(entry, "parameter_is_typed", nothing),
+                "parameter_is_defaulted" => get(entry, "parameter_is_defaulted", nothing),
+                "parameter_is_vararg" => get(entry, "parameter_is_vararg", nothing),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_kind" => get(entry, "owner_kind", nothing),
+                "module_name" => get(entry, "module_name", nothing),
+                "module_path" => get(entry, "module_path", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
+                "target_path" => get(entry, "target_path", nothing),
+                "line_start" => get(entry, "line_start", nothing),
+                "line_end" => get(entry, "line_end", nothing),
+            ) for entry in state.parameters
         ],
     )
     append!(
@@ -96,6 +160,12 @@ function _julia_summary_items(state::JuliaCollectionState)
                 "name" => String(entry["target_name"]),
                 "target_kind" => String(entry["target_kind"]),
                 "content" => String(entry["content"]),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_kind" => get(entry, "owner_kind", nothing),
+                "module_name" => get(entry, "module_name", nothing),
+                "module_path" => get(entry, "module_path", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
+                "target_path" => get(entry, "target_path", nothing),
                 "line_start" => get(entry, "line_start", nothing),
                 "line_end" => get(entry, "line_end", nothing),
                 "target_line_start" => get(entry, "target_line_start", nothing),
@@ -109,6 +179,11 @@ function _julia_summary_items(state::JuliaCollectionState)
             Dict(
                 "group" => "include",
                 "path" => String(entry["path"]),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_kind" => get(entry, "owner_kind", nothing),
+                "module_name" => get(entry, "module_name", nothing),
+                "module_path" => get(entry, "module_path", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
                 "line_start" => get(entry, "line_start", nothing),
                 "line_end" => get(entry, "line_end", nothing),
             ) for entry in state.includes

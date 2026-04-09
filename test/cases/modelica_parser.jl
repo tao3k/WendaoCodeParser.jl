@@ -81,6 +81,7 @@ end
     @test documentation_response.success
     @test documentation_response.match_count == 1
     @test documentation_response.matches[1]["node_kind"] == "documentation"
+    @test documentation_response.matches[1]["owner_path"] == "Demo"
 
     equation_response = search_modelica_ast(
         ParserRequest(
@@ -102,6 +103,76 @@ end
     @test equation_response.match_count == 1
     @test equation_response.matches[1]["node_kind"] == "equation"
     @test occursin("y = 10 * 2", equation_response.matches[1]["text"])
+
+    attribute_response = search_modelica_ast(
+        ParserRequest(
+            "req-7-attr",
+            "Aligned.mo",
+            """
+            model Demo
+              input Real u;
+            protected
+              parameter Integer n(unit="s") = 1 + 2;
+            end Demo;
+            """;
+            node_kind = "component",
+            attribute_key = "component_kind",
+            attribute_equals = "parameter",
+            limit = 5,
+        ),
+    )
+    @test attribute_response.success
+    @test attribute_response.match_count == 1
+    @test attribute_response.matches[1]["name"] == "n"
+    @test attribute_response.matches[1]["attribute_key"] == "component_kind"
+    @test attribute_response.matches[1]["attribute_value"] == "parameter"
+
+    unit_response = search_modelica_ast(
+        ParserRequest(
+            "req-7-unit",
+            "Aligned.mo",
+            """
+            model Demo
+            protected
+              parameter Integer n(unit="s") = 1 + 2;
+            end Demo;
+            """;
+            node_kind = "component",
+            attribute_key = "unit",
+            attribute_equals = "s",
+            limit = 5,
+        ),
+    )
+    @test unit_response.success
+    @test unit_response.match_count == 1
+    @test unit_response.matches[1]["name"] == "n"
+    @test unit_response.matches[1]["attribute_value"] == "s"
+
+    scoped_response = search_modelica_ast(
+        ParserRequest(
+            "req-7-scope",
+            "Nested.mo",
+            """
+            model Demo
+              parameter Integer n = 1;
+              model Inner
+                parameter Integer n = 2;
+              end Inner;
+            end Demo;
+            """;
+            node_kind = "component",
+            name_equals = "n",
+            attribute_key = "owner_path",
+            attribute_equals = "Demo.Inner",
+            limit = 5,
+        ),
+    )
+    @test scoped_response.success
+    @test scoped_response.match_count == 1
+    @test scoped_response.matches[1]["name"] == "n"
+    @test scoped_response.matches[1]["owner_path"] == "Demo.Inner"
+    @test scoped_response.matches[1]["class_path"] == "Demo.Inner"
+    @test scoped_response.matches[1]["attribute_value"] == "Demo.Inner"
 end
 
 @testset "Modelica native summary alignment details" begin
@@ -157,6 +228,92 @@ end
     @test occursin("y = 10 * 2", equations[1]["text"])
     @test equations[1]["line_start"] == 8
     @test equations[1]["line_end"] == 8
+
+    scoped_response = parse_modelica_file_summary(
+        ParserRequest(
+            "req-7-scoped",
+            "Scoped.mo",
+            """
+            model Demo
+              import Modelica.Constants.pi;
+              parameter Integer n = 1;
+              model Inner
+                import Modelica.Constants.pi;
+                parameter Integer n = 2;
+              end Inner;
+            end Demo;
+            """,
+        ),
+    )
+    @test scoped_response.success
+    scoped_imports =
+        [item for item in scoped_response.summary_items if item["group"] == "import"]
+    @test length(scoped_imports) == 2
+    @test sort(collect(String(item["owner_path"]) for item in scoped_imports)) ==
+          ["Demo", "Demo.Inner"]
+    scoped_symbols = [
+        item for item in scoped_response.summary_items if
+        item["group"] == "symbol" && item["name"] == "n"
+    ]
+    @test length(scoped_symbols) == 2
+    @test sort(collect(String(item["owner_path"]) for item in scoped_symbols)) ==
+          ["Demo", "Demo.Inner"]
+end
+
+@testset "Modelica native component modifier alignment details" begin
+    source = """
+    model Demo
+      parameter Real x[3](unit="s", start=1) = 2;
+    end Demo;
+    """
+
+    response = parse_modelica_file_summary(
+        ParserRequest("req-7-modifiers", "Modifiers.mo", source),
+    )
+    @test response.success
+    symbols = Dict(
+        String(item["name"]) => item for
+        item in response.summary_items if item["group"] == "symbol"
+    )
+    @test haskey(symbols, "x")
+    @test symbols["x"]["array_dimensions"] == "[3]"
+    @test symbols["x"]["start_value"] == "1"
+    @test symbols["x"]["modifier_names"] == "unit,start"
+    @test symbols["x"]["default_value"] == "2"
+    @test symbols["x"]["unit"] == "s"
+
+    dimension_response = search_modelica_ast(
+        ParserRequest(
+            "req-7-dim",
+            "Modifiers.mo",
+            source;
+            node_kind = "component",
+            attribute_key = "array_dimensions",
+            attribute_equals = "[3]",
+            limit = 5,
+        ),
+    )
+    @test dimension_response.success
+    @test dimension_response.match_count == 1
+    @test dimension_response.matches[1]["name"] == "x"
+    @test dimension_response.matches[1]["array_dimensions"] == "[3]"
+
+    start_response = search_modelica_ast(
+        ParserRequest(
+            "req-7-start",
+            "Modifiers.mo",
+            source;
+            node_kind = "component",
+            attribute_key = "start_value",
+            attribute_equals = "1",
+            limit = 5,
+        ),
+    )
+    @test start_response.success
+    @test start_response.match_count == 1
+    @test start_response.matches[1]["name"] == "x"
+    @test start_response.matches[1]["start_value"] == "1"
+    @test start_response.matches[1]["modifier_names"] == "unit,start"
 end
 
 @testset "Modelica AST query cache hits and invalidation" begin

@@ -31,13 +31,29 @@ function _modelica_summary_items(state::ModelicaCollectionState)
     append!(
         items,
         [
-            Dict("group" => "import", "name" => import_name, "module" => import_name) for
-            import_name in state.imports
+            Dict(
+                "group" => "import",
+                "name" => String(entry["module"]),
+                "module" => String(entry["module"]),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
+                "line_start" => get(entry, "line_start", nothing),
+                "line_end" => get(entry, "line_end", nothing),
+            ) for entry in state.imports
         ],
     )
     append!(
         items,
-        [Dict("group" => "extend", "path" => extend_name) for extend_name in state.extends],
+        [
+            Dict(
+                "group" => "extend",
+                "path" => String(entry["path"]),
+                "owner_name" => get(entry, "owner_name", nothing),
+                "owner_path" => get(entry, "owner_path", nothing),
+                "line_start" => get(entry, "line_start", nothing),
+                "line_end" => get(entry, "line_end", nothing),
+            ) for entry in state.extends
+        ],
     )
     append!(
         items,
@@ -53,9 +69,14 @@ function _modelica_summary_items(state::ModelicaCollectionState)
                     "variability" => get(metadata, "variability", nothing),
                     "direction" => get(metadata, "direction", nothing),
                     "component_kind" => get(metadata, "component_kind", nothing),
+                    "array_dimensions" => get(metadata, "array_dimensions", nothing),
                     "default_value" => get(metadata, "default_value", nothing),
+                    "start_value" => get(metadata, "start_value", nothing),
+                    "modifier_names" => get(metadata, "modifier_names", nothing),
                     "unit" => get(metadata, "unit", nothing),
                     "owner_name" => get(metadata, "owner_name", nothing),
+                    "owner_path" => get(metadata, "owner_path", nothing),
+                    "class_path" => get(metadata, "class_path", nothing),
                     "line_start" => get(entry, "line_start", nothing),
                     "line_end" => get(entry, "line_end", nothing),
                     "is_partial" => get(metadata, "is_partial", nothing),
@@ -74,6 +95,7 @@ function _modelica_summary_items(state::ModelicaCollectionState)
                 "kind" => "equation",
                 "text" => String(entry["text"]),
                 "owner_name" => String(get(entry, "owner_name", "")),
+                "owner_path" => get(entry, "owner_path", nothing),
                 "line_start" => get(entry, "line_start", nothing),
                 "line_end" => get(entry, "line_end", nothing),
             ) for entry in state.equations

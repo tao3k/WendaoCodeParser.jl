@@ -25,6 +25,8 @@ Schema version: `v3`
 
 This draft exists to keep the Rust replacement order explicit while package
 docs track native Julia and Modelica parser ownership behind Arrow Flight.
+The workspace keeps the published schema label at `v3` until a release cut,
+even when additive native Arrow columns land locally.
 
 ## 2. Migration Order
 
@@ -104,9 +106,12 @@ The compatibility alignment follows these rules:
    consumes that vocabulary instead of re-deriving tree shapes separately
 5. documentation text is normalized before it becomes a summary item or AST
    node, so callers consume semantic content instead of lexer markers
-6. this package remains parser-side only throughout the cutover; it must not
+6. AST search must reuse parser-owned fields and metadata through native Arrow
+   request columns instead of introducing JSON payloads or search-only parser
+   shadow schema
+7. this package remains parser-side only throughout the cutover; it must not
    grow a parser-local Rust or host client surface
-7. when Rust consumers cut over, the client linkage belongs in the consuming
+8. when Rust consumers cut over, the client linkage belongs in the consuming
    search, graph, or runtime layer, not in the language parser owners
 
 ## 6. Current Native Alignment Surface
@@ -127,7 +132,9 @@ Current Julia AST node kinds:
 4. `include`
 5. `function`
 6. `type`
-7. `docstring`
+7. `binding`
+8. `macro`
+9. `docstring`
 
 Current native Julia detail coverage:
 
@@ -139,6 +146,38 @@ Current native Julia detail coverage:
    `target_line_end`
 4. first-line function signatures for both short-form and block-form function
    declarations
+5. scoped module ownership metadata through `module_name`, `module_path`,
+   `owner_name`, `owner_kind`, and `owner_path`
+6. scoped dedup so nested modules with the same short declaration names remain
+   distinct parser nodes
+7. top-level binding coverage for `const` and `global` declarations through
+   `binding_kind`
+8. native macro definition coverage, including summary rows, AST rows, and
+   docstring target linkage for parser-owned `macro` nodes
+9. explicit Julia type classification through `type_kind`, including
+   `mutable_struct`
+10. explicit Julia module classification through `module_kind`, including
+    `baremodule`
+11. richer Julia type classification through `type_kind = abstract_type` and
+    `type_kind = primitive_type`
+12. parser-owned Julia function-header detail through
+    `function_positional_arity`, `function_keyword_arity`,
+    `function_has_varargs`, `function_where_params`, and
+    `function_return_type`
+13. parser-owned Julia function-parameter detail through
+    `function_positional_params`, `function_keyword_params`,
+    `function_defaulted_params`, `function_typed_params`,
+    `function_positional_vararg_name`, and
+    `function_keyword_vararg_name`
+14. same-scope Julia function methods are preserved as distinct parser rows
+    and AST nodes instead of being collapsed by short name; consumers
+    disambiguate methods through parser-owned `signature`, `line_start`,
+    `line_end`, and base `path`
+15. Julia function parameters are now also materialized as parser-owned
+    summary items and AST nodes through `parameter_kind`,
+    `parameter_type_name`, `parameter_default_value`,
+    `parameter_is_typed`, `parameter_is_defaulted`,
+    `parameter_is_vararg`, and method-level `target_path`
 
 Current Modelica summary groups:
 
@@ -155,10 +194,17 @@ Current native Modelica summary detail columns:
 2. component typing detail through nullable `item_type_name`,
    `item_variability`, and `item_direction`
 3. component parity detail through nullable `item_component_kind`,
-   `item_default_value`, and `item_unit`
+   `item_array_dimensions`, `item_default_value`, `item_start_value`,
+   `item_modifier_names`, and `item_unit`
 4. source span detail through nullable `item_line_start` and `item_line_end`
 5. class qualifier detail through nullable `item_is_partial`,
    `item_is_final`, and `item_is_encapsulated`
+6. direct parser summary items now also retain scoped ownership metadata such
+   as `owner_path` and nested class identity through `class_path`
+7. parser-owned structural scope metadata is now promoted into stable native
+   summary columns such as `item_owner_kind`, `item_owner_path`,
+   `item_module_name`, `item_module_path`, `item_class_path`, and
+   `item_target_path`
 
 Current Modelica AST node kinds:
 
@@ -169,6 +215,43 @@ Current Modelica AST node kinds:
 4. `extends`
 5. `equation`
 6. `documentation`
+
+Current native AST query columns:
+
+1. `node_kind`
+2. `name_equals`
+3. `name_contains`
+4. `text_contains`
+5. `signature_contains`
+6. `attribute_key`
+7. `attribute_equals`
+8. `attribute_contains`
+9. `limit`
+
+Current native AST query resolution rules:
+
+1. `attribute_key` resolves against a parser-owned top-level AST node field
+   first and then against parser-owned `metadata`
+2. response rows echo the resolved queried attribute through
+   `match_attribute_key` and `match_attribute_value`
+3. Julia search can therefore filter directly on provider-owned attributes such
+   as `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
+   `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
+   `binding_kind`, `type_kind`, `module_kind`,
+   `function_positional_arity`, `function_keyword_arity`,
+   `function_has_varargs`, `function_where_params`, and
+   `function_return_type`
+4. Modelica search can therefore filter directly on provider-owned attributes
+   such as `owner_name`, `owner_path`, `class_path`, `visibility`,
+   `type_name`, `variability`, `direction`, `component_kind`,
+   `array_dimensions`, `default_value`, `start_value`, `modifier_names`,
+   `unit`, `restriction`, `is_partial`, `is_final`, and `is_encapsulated`
+5. AST match rows now also project parser-owned structural fields into stable
+   columns such as `match_target_kind`, `match_module`, `match_path`,
+   `match_owner_name`, `match_owner_kind`, `match_owner_path`,
+   `match_module_name`, `match_module_path`, `match_class_path`, and
+   `match_target_path`, so mounted consumers do not need to recover those
+   semantics only through `match_attribute_key` / `match_attribute_value`
 
 ## 7. Alignment Tracker
 
@@ -183,19 +266,32 @@ Current checkpoint status:
    and class qualifiers: done
 7. Modelica native component-detail parity for kind, default-value, and unit:
    done
-8. Rust summary-surface replacement in `xiuxian-ast` callers: pending
-9. Rust-visible AST search promotion: pending
+8. native parser-attribute AST search seam over Arrow rows: done
+9. scoped ownership alignment for nested Julia and Modelica declarations: done
+10. native scope-column promotion for summary and AST rows: done
+11. Julia declaration coverage for bindings, macros, and mutable structs: done
+12. Julia module-kind and richer type-kind normalization: done
+13. Modelica component modifier alignment for dimensions, start values, and
+    modifier names: done
+14. Julia function-header alignment for arity, varargs, `where`, and return
+    annotations: done
+15. Rust summary-surface replacement in `xiuxian-ast` callers: pending
+16. Rust-visible AST search promotion: pending
 
 Current compatibility risk to track:
 
 1. Julia compatibility is close to the old Rust surface because the current
    summary fields now map cleanly to module, import, symbol, docstring,
-   include, reexport, and parser-owned line-span semantics
+   include, reexport, parser-owned line-span semantics, scoped module
+   ownership, top-level binding kinds, macro definitions, module-kind
+   normalization, richer type-kind normalization, and parser-owned
+   function-header semantics
 2. Modelica compatibility is now materially closer than before, but it is
    still thinner than the old Rust `ModelicaFileSummary` because the old Rust
    surface nests component detail inside class symbols, while the native Arrow
-   contract currently exposes the same information as flattened symbol rows
-   keyed by `owner_name`
+   contract currently exposes the same information, including component array
+   dimensions and modifier detail, as flattened symbol rows keyed by
+   `owner_name` and `owner_path`
 3. mounted live child startup still depends on the `OMParser.jl` native bridge
    resolving `Absyn`, `ImmutableList`, and `MetaModelica` from `Main`
 
@@ -214,5 +310,7 @@ The next bounded implementation steps under this docs contract are:
    consume the native flattened Arrow rows keyed by `owner_name`
 5. keep parser-package tests split across bounded `test/cases/` files so the
    parser runner does not grow back into a monolithic integration surface
-6. only then decide which native AST search capabilities should become
+6. keep mounted parser regressions isolated in dedicated shared-service test
+   modules instead of expanding general live-service files
+7. only then decide which native AST search capabilities should become
    Rust-visible traits or route contracts

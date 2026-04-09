@@ -3,6 +3,7 @@
     @test response.success
     @test response.primary_name == "Demo"
     @test response.summary_scalars["module_name"] == "Demo"
+    @test response.summary_scalars["module_kind"] == "module"
     @test [item["name"] for item in response.summary_items if item["group"] == "export"] == ["foo", "Bar"]
     @test [item["path"] for item in response.summary_items if item["group"] == "include"] == ["nested.jl"]
     @test [
@@ -27,6 +28,79 @@
     )
     @test foo_symbol["line_start"] == 3
     @test foo_symbol["line_end"] == 3
+end
+
+@testset "Julia baremodule and richer type kind alignment" begin
+    source = """
+    baremodule Bare
+    abstract type AbstractBox end
+    primitive type Word 32 end
+    end
+    """
+
+    response =
+        parse_julia_file_summary(ParserRequest("req-julia-module-kind", "Bare.jl", source))
+    @test response.success
+    @test response.primary_name == "Bare"
+    @test response.summary_scalars["module_name"] == "Bare"
+    @test response.summary_scalars["module_kind"] == "baremodule"
+
+    symbols = Dict(
+        String(item["name"]) => item for
+        item in response.summary_items if item["group"] == "symbol"
+    )
+    @test symbols["AbstractBox"]["kind"] == "type"
+    @test symbols["AbstractBox"]["type_kind"] == "abstract_type"
+    @test symbols["Word"]["kind"] == "type"
+    @test symbols["Word"]["type_kind"] == "primitive_type"
+
+    module_response = search_julia_ast(
+        ParserRequest(
+            "req-julia-baremodule",
+            "Bare.jl",
+            source;
+            node_kind = "module",
+            attribute_key = "module_kind",
+            attribute_equals = "baremodule",
+            limit = 5,
+        ),
+    )
+    @test module_response.success
+    @test module_response.match_count == 1
+    @test module_response.matches[1]["name"] == "Bare"
+    @test module_response.matches[1]["module_kind"] == "baremodule"
+
+    abstract_response = search_julia_ast(
+        ParserRequest(
+            "req-julia-abstract-type",
+            "Bare.jl",
+            source;
+            node_kind = "type",
+            attribute_key = "type_kind",
+            attribute_equals = "abstract_type",
+            limit = 5,
+        ),
+    )
+    @test abstract_response.success
+    @test abstract_response.match_count == 1
+    @test abstract_response.matches[1]["name"] == "AbstractBox"
+    @test abstract_response.matches[1]["type_kind"] == "abstract_type"
+
+    primitive_response = search_julia_ast(
+        ParserRequest(
+            "req-julia-primitive-type",
+            "Bare.jl",
+            source;
+            node_kind = "type",
+            attribute_key = "type_kind",
+            attribute_equals = "primitive_type",
+            limit = 5,
+        ),
+    )
+    @test primitive_response.success
+    @test primitive_response.match_count == 1
+    @test primitive_response.matches[1]["name"] == "Word"
+    @test primitive_response.matches[1]["type_kind"] == "primitive_type"
 end
 
 @testset "Julia root summary requires module" begin
@@ -71,6 +145,75 @@ end
     @test docstring_response.matches[1]["line_end"] == 2
     @test docstring_response.matches[1]["target_line_start"] == 3
     @test docstring_response.matches[1]["target_line_end"] == 3
+    @test docstring_response.matches[1]["target_kind"] == "symbol"
+    @test docstring_response.matches[1]["target_path"] == "Demo.foo"
+
+    reexport_response = search_julia_ast(
+        ParserRequest(
+            "req-3-reexport",
+            "Aligned.jl",
+            """
+            module Demo
+            @reexport using DataFrames
+            end
+            """;
+            node_kind = "import",
+            attribute_key = "reexported",
+            attribute_equals = "true",
+            limit = 5,
+        ),
+    )
+    @test reexport_response.success
+    @test reexport_response.match_count == 1
+    @test reexport_response.matches[1]["name"] == "DataFrames"
+    @test reexport_response.matches[1]["attribute_key"] == "reexported"
+    @test reexport_response.matches[1]["attribute_value"] == true
+
+    nested_response = search_julia_ast(
+        ParserRequest(
+            "req-3-scope",
+            "Nested.jl",
+            """
+            module Demo
+            foo(x)=x
+            module Inner
+            foo(x)=x + 1
+            end
+            end
+            """;
+            node_kind = "function",
+            name_equals = "foo",
+            limit = 10,
+        ),
+    )
+    @test nested_response.success
+    @test nested_response.match_count == 2
+
+    inner_response = search_julia_ast(
+        ParserRequest(
+            "req-3-inner",
+            "Nested.jl",
+            """
+            module Demo
+            foo(x)=x
+            module Inner
+            foo(x)=x + 1
+            end
+            end
+            """;
+            node_kind = "function",
+            name_equals = "foo",
+            attribute_key = "owner_path",
+            attribute_equals = "Demo.Inner",
+            limit = 5,
+        ),
+    )
+    @test inner_response.success
+    @test inner_response.match_count == 1
+    @test inner_response.matches[1]["name"] == "foo"
+    @test inner_response.matches[1]["owner_path"] == "Demo.Inner"
+    @test inner_response.matches[1]["module_path"] == "Demo.Inner"
+    @test inner_response.matches[1]["attribute_value"] == "Demo.Inner"
 end
 
 @testset "Julia native syntax alignment details" begin
@@ -128,4 +271,34 @@ end
     @test symbol_doc["line_end"] == 5
     @test symbol_doc["target_line_start"] == 6
     @test symbol_doc["target_line_end"] == 6
+
+    scoped_response = parse_julia_file_summary(
+        ParserRequest(
+            "req-3-scoped",
+            "Scoped.jl",
+            """
+            module Demo
+            using DataFrames
+            foo(x)=x
+            module Inner
+            using DataFrames
+            foo(x)=x + 1
+            end
+            end
+            """,
+        ),
+    )
+    @test scoped_response.success
+    scoped_imports =
+        [item for item in scoped_response.summary_items if item["group"] == "import"]
+    @test length(scoped_imports) == 2
+    @test sort(collect(String(item["owner_path"]) for item in scoped_imports)) ==
+          ["Demo", "Demo.Inner"]
+    scoped_symbols = [
+        item for item in scoped_response.summary_items if
+        item["group"] == "symbol" && item["name"] == "foo"
+    ]
+    @test length(scoped_symbols) == 2
+    @test sort(collect(String(item["owner_path"]) for item in scoped_symbols)) ==
+          ["Demo", "Demo.Inner"]
 end
