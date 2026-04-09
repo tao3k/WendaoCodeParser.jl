@@ -235,11 +235,17 @@ Current native Modelica summary detail columns:
    `SI` and `Math`, so native search can query scope-visible Modelica imports
    without splitting dependency targets
 10. current Modelica import alignment now also exposes syntax forms such as
-    `named_import`, `qualified_import`, and `extends`, so consumers can audit
-    native Modelica import shapes directly over Arrow rows
-11. current Modelica import alignment covers named imports and qualified
-   imports; grouped imports are not yet part of the package contract because
-   the upstream native parser bridge is not stable on that input in this lane
+    `named_import`, `qualified_import`, `unqualified_import`, and `extends`,
+    so consumers can audit native Modelica import shapes directly over Arrow
+    rows
+11. current Modelica import alignment preserves both `qualified_import` and
+    `unqualified_import` rows even when they target the same module path,
+    so search can distinguish `import Modelica.Math;` from
+    `import Modelica.Math.*;` without re-deriving import shape from source text
+12. current Modelica import alignment covers named, qualified, and
+   unqualified imports; grouped imports are rejected as deterministic
+   parser-owned preflight errors before the native bridge, so the package
+   contract returns structured failure instead of process abort
 
 Current Modelica AST node kinds:
 
@@ -269,7 +275,13 @@ Current native AST query resolution rules:
    first and then against parser-owned `metadata`
 2. response rows echo the resolved queried attribute through
    `match_attribute_key` and `match_attribute_value`
-3. Julia search can therefore filter directly on provider-owned attributes such
+3. identifier-list fields such as `function_keyword_params`,
+   `function_defaulted_params`, `function_typed_params`,
+   `function_positional_params`, and `modifier_names` now use parser-owned
+   list semantics during attribute filtering, so `attribute_equals` matches an
+   individual member and `match_attribute_value` reports the matched member
+   rather than the full serialized field
+4. Julia search can therefore filter directly on provider-owned attributes such
    as `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
    `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
    `binding_kind`, `type_kind`, `type_parameters`, `type_supertype`,

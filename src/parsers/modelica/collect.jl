@@ -2,7 +2,7 @@ mutable struct ModelicaCollectionState
     primary_class::Union{Nothing,String}
     restriction::Union{Nothing,String}
     imports::Vector{Dict{String,Any}}
-    import_set::Set{Tuple{String,String,String}}
+    import_set::Set{Tuple{String,String,String,String}}
     extends::Vector{Dict{String,Any}}
     extend_set::Set{Tuple{String,String}}
     symbols::Vector{Dict{String,Any}}
@@ -17,7 +17,7 @@ function ModelicaCollectionState()
         nothing,
         nothing,
         Dict{String,Any}[],
-        Set{Tuple{String,String,String}}(),
+        Set{Tuple{String,String,String,String}}(),
         Dict{String,Any}[],
         Set{Tuple{String,String}}(),
         Dict{String,Any}[],

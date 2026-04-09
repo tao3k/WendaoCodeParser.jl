@@ -218,17 +218,27 @@ Contract note:
     queryable over the native Arrow contract instead of being inferred from
     target-path leaf segments
 20. Modelica dependency rows now also expose parser-owned syntax forms such as
-    `named_import`, `qualified_import`, and `extends`, so native search can
-    distinguish imported binding shapes without reconstructing the Modelica
-    source string on the host side
-21. Modelica named imports now also expose parser-owned `dependency_alias`
-    detail, while grouped imports are still outside the current package
-    contract because the upstream native parser bridge is not yet stable on
-    that input shape
-22. AST search now resolves `attribute_key` against parser-owned top-level node
+    `named_import`, `qualified_import`, `unqualified_import`, and `extends`,
+    so native search can distinguish imported binding shapes without
+    reconstructing the Modelica source string on the host side
+21. Modelica qualified and unqualified imports now remain distinct parser
+    rows even when they target the same module path inside one class scope, so
+    search does not collapse `import Modelica.Math;` and
+    `import Modelica.Math.*;` into one dependency row
+22. Modelica named imports now also expose parser-owned `dependency_alias`
+    detail, while grouped imports now fail as deterministic parser-owned
+    errors before the native bridge instead of aborting the service process
+23. AST search now resolves `attribute_key` against parser-owned top-level node
    fields first and then against parser-owned `metadata`, so search can reuse
    native provider detail instead of inventing parallel search-only schema
-23. parser-native AST search can now query Julia attributes such as
+24. parser-native AST search now treats identifier-list fields such as
+   `function_keyword_params`, `function_defaulted_params`,
+   `function_typed_params`, `function_positional_params`, and
+   `modifier_names` as parser-owned list semantics during attribute matching,
+   so `attribute_equals` can match one list member and
+   `match_attribute_value` reports the exact matched member instead of the
+   whole serialized field
+25. parser-native AST search can now query Julia attributes such as
    `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
    `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
    `path`, `dependency_kind`, `dependency_form`, `dependency_target`,
@@ -251,16 +261,17 @@ Contract note:
    `variability`, `direction`, `component_kind`, `array_dimensions`,
    `default_value`, `start_value`, `modifier_names`, `unit`,
    `restriction`, `is_partial`, `is_final`, or `is_encapsulated`
-24. scoped parser ownership now participates in dedup: repeated short names in
+26. scoped parser ownership now participates in dedup: repeated short names in
    different Julia modules or different Modelica class scopes are preserved as
    distinct AST nodes instead of being collapsed globally
-25. package tests are now split under `test/support/` and `test/cases/`, so
+27. package tests are now split under `test/support/` and `test/cases/`, so
    `test/runtests.jl` stays as a small runner instead of a monolithic file
-26. parser-specific Flight round-trip coverage is now isolated in
+28. parser-specific Flight round-trip coverage is now isolated in
    `test/cases/flight_native_columns.jl`, and mounted shared-service parser
    regressions are isolated under `WendaoSearch.jl/test/integration/`,
    including `live_code_parser.jl`, `live_dependency_semantics.jl`,
-   `live_relative_dependencies.jl`, and `live_julia_type_headers.jl`
+   `live_relative_dependencies.jl`, `live_modelica_import_forms.jl`, and
+   `live_julia_type_headers.jl`
 
 GitHub Actions note:
 

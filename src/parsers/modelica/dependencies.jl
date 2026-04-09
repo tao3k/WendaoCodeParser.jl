@@ -49,15 +49,20 @@ function _push_modelica_import!(
     import_metadata = Dict{String,Any}(metadata)
     owner_key =
         String(get(import_metadata, "owner_path", get(import_metadata, "owner_name", "")))
-    import_key =
-        (import_name, String(get(import_metadata, "dependency_alias", "")), owner_key)
+    dependency_form = String(get(import_metadata, "dependency_form", "import"))
+    import_key = (
+        import_name,
+        dependency_form,
+        String(get(import_metadata, "dependency_alias", "")),
+        owner_key,
+    )
     import_key in state.import_set && return nothing
     push!(state.import_set, import_key)
     import_entry = Dict{String,Any}(
         "module" => import_name,
         "dependency_kind" => "import",
         "dependency_target" => import_name,
-        "dependency_form" => String(get(import_metadata, "dependency_form", "import")),
+        "dependency_form" => dependency_form,
         "line_start" => line_start,
         "line_end" => line_end,
     )
@@ -66,8 +71,7 @@ function _push_modelica_import!(
     import_metadata["module"] = import_name
     import_metadata["dependency_kind"] = "import"
     import_metadata["dependency_target"] = import_name
-    import_metadata["dependency_form"] =
-        String(get(import_metadata, "dependency_form", "import"))
+    import_metadata["dependency_form"] = dependency_form
     push!(
         state.nodes,
         _modelica_ast_node(

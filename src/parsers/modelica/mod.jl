@@ -1,3 +1,4 @@
+include("preflight.jl")
 include("backend.jl")
 include("nodes.jl")
 include("collect.jl")

@@ -28,23 +28,19 @@ function _node_matches_query(node::Dict{String,Any}, query::AstQuery)
         attribute_value = _node_attribute_value(node, query.attribute_key)
         isnothing(attribute_value) && return false
         !isnothing(query.attribute_equals) &&
-            !_attribute_equals(attribute_value, query.attribute_equals) &&
+            !_attribute_equals(
+                query.attribute_key,
+                attribute_value,
+                query.attribute_equals,
+            ) &&
             return false
         !isnothing(query.attribute_contains) &&
-            !_contains_text(attribute_value, query.attribute_contains) &&
+            !_contains_text(
+                query.attribute_key,
+                attribute_value,
+                query.attribute_contains,
+            ) &&
             return false
     end
     return true
 end
-
-function _node_attribute_value(node::Dict{String,Any}, key::AbstractString)
-    value = get(node, String(key), nothing)
-    !isnothing(value) && return value
-    metadata = get(node, "metadata", nothing)
-    metadata isa AbstractDict || return nothing
-    return get(metadata, String(key), nothing)
-end
-
-_attribute_equals(value, needle::AbstractString) = String(value) == String(needle)
-_contains_text(value, needle::AbstractString) =
-    !isnothing(value) && occursin(lowercase(String(needle)), lowercase(String(value)))

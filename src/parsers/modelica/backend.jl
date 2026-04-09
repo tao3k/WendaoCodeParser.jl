@@ -47,6 +47,7 @@ function omparser_backend_unavailable_reason()
 end
 
 function _parse_modelica_program(source_text::AbstractString, source_id::AbstractString)
+    validate_modelica_source_preflight!(source_text, source_id)
     _ensure_omparser_runtime_modules!()
     _maybe_omparser_module()
     symbol = _ensure_omparser_parse_symbol!()
