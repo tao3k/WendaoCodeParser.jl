@@ -88,6 +88,9 @@ function _julia_summary_items(state::JuliaCollectionState)
                 "owner_path" => get(entry, "owner_path", nothing),
                 "binding_kind" => get(entry, "binding_kind", nothing),
                 "type_kind" => get(entry, "type_kind", nothing),
+                "type_parameters" => get(entry, "type_parameters", nothing),
+                "type_supertype" => get(entry, "type_supertype", nothing),
+                "primitive_bits" => get(entry, "primitive_bits", nothing),
                 "function_positional_arity" =>
                     get(entry, "function_positional_arity", nothing),
                 "function_keyword_arity" => get(entry, "function_keyword_arity", nothing),

@@ -47,14 +47,3 @@ function _julia_macro_definition_signature(node, source::String)
     isnothing(macro_name) && return signature
     return "macro $(something(macro_name))"
 end
-
-function _julia_type_kind(node, source::String)
-    node_kind = _julia_kind_name(node)
-    node_kind == "struct" &&
-        startswith(_julia_node_signature(node, source), "mutable struct") &&
-        return "mutable_struct"
-    node_kind == "struct" && return "struct"
-    node_kind == "abstract" && return "abstract_type"
-    node_kind == "primitive" && return "primitive_type"
-    return nothing
-end

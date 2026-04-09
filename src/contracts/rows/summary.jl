@@ -45,9 +45,25 @@ function _parser_summary_response_rows(response::ParserResponse)
                         item,
                         "dependency_kind",
                     ),
+                    item_dependency_form = _parser_summary_item_text(
+                        item,
+                        "dependency_form",
+                    ),
                     item_dependency_target = _parser_summary_item_text(
                         item,
                         "dependency_target",
+                    ),
+                    item_dependency_is_relative = _parser_summary_item_bool(
+                        item,
+                        "dependency_is_relative",
+                    ),
+                    item_dependency_relative_level = _parser_summary_item_int(
+                        item,
+                        "dependency_relative_level",
+                    ),
+                    item_dependency_local_name = _parser_summary_item_text(
+                        item,
+                        "dependency_local_name",
                     ),
                     item_dependency_parent = _parser_summary_item_text(
                         item,
@@ -78,6 +94,12 @@ function _parser_summary_response_rows(response::ParserResponse)
                     item_unit = _parser_summary_item_text(item, "unit"),
                     item_binding_kind = _parser_summary_item_text(item, "binding_kind"),
                     item_type_kind = _parser_summary_item_text(item, "type_kind"),
+                    item_type_parameters = _parser_summary_item_text(
+                        item,
+                        "type_parameters",
+                    ),
+                    item_type_supertype = _parser_summary_item_text(item, "type_supertype"),
+                    item_primitive_bits = _parser_summary_item_text(item, "primitive_bits"),
                     item_function_positional_arity = _parser_summary_item_int(
                         item,
                         "function_positional_arity",
@@ -185,7 +207,11 @@ function _parser_empty_summary_item_row()
         item_module = missing,
         item_path = missing,
         item_dependency_kind = missing,
+        item_dependency_form = missing,
         item_dependency_target = missing,
+        item_dependency_is_relative = missing,
+        item_dependency_relative_level = missing,
+        item_dependency_local_name = missing,
         item_dependency_parent = missing,
         item_dependency_member = missing,
         item_dependency_alias = missing,
@@ -203,6 +229,9 @@ function _parser_empty_summary_item_row()
         item_unit = missing,
         item_binding_kind = missing,
         item_type_kind = missing,
+        item_type_parameters = missing,
+        item_type_supertype = missing,
+        item_primitive_bits = missing,
         item_function_positional_arity = missing,
         item_function_keyword_arity = missing,
         item_function_has_varargs = missing,

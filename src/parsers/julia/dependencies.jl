@@ -8,11 +8,55 @@ function _julia_dependency_entry(
     member = nothing,
     alias = nothing,
 )
-    entry = Dict{String,Any}("dependency_target" => String(target))
+    dependency_form = _julia_dependency_form(; member = member, alias = alias)
+    local_name = _julia_dependency_local_name(target; member = member, alias = alias)
+    relative_level = _julia_dependency_relative_level(target)
+    entry = Dict{String,Any}(
+        "dependency_target" => String(target),
+        "dependency_form" => dependency_form,
+        "dependency_is_relative" => relative_level > 0,
+        "dependency_relative_level" => relative_level,
+    )
+    isnothing(local_name) || (entry["dependency_local_name"] = String(local_name))
     isnothing(parent) || (entry["dependency_parent"] = String(parent))
     isnothing(member) || (entry["dependency_member"] = String(member))
     isnothing(alias) || (entry["dependency_alias"] = String(alias))
     return entry
+end
+
+function _julia_dependency_form(; member = nothing, alias = nothing)::String
+    !isnothing(alias) && !isnothing(member) && return "aliased_member"
+    !isnothing(alias) && return "alias"
+    !isnothing(member) && return "member"
+    return "path"
+end
+
+function _julia_dependency_relative_level(target::AbstractString)::Int
+    level = 0
+    for char in String(target)
+        char == '.' || break
+        level += 1
+    end
+    return level
+end
+
+function _julia_dependency_leaf_name(target::AbstractString)
+    stripped = replace(String(target), r"^\.+" => "")
+    isempty(stripped) && return nothing
+    segments = split(stripped, '.')
+    isempty(segments) && return nothing
+    leaf = last(segments)
+    return isempty(leaf) ? nothing : leaf
+end
+
+function _julia_dependency_local_name(
+    target::AbstractString;
+    member = nothing,
+    alias = nothing,
+)
+    !isnothing(alias) && return String(alias)
+    !isnothing(member) && return String(member)
+    return _julia_dependency_leaf_name(target)
 end
 
 function _julia_import_dependencies(node, source::String)
@@ -45,6 +89,13 @@ function _julia_import_dependencies(node, source::String, parent)
         dependencies = _julia_import_dependencies(children[1], source, parent)
         for entry in dependencies
             isnothing(alias) || (entry["dependency_alias"] = String(alias))
+            isnothing(alias) || (entry["dependency_local_name"] = String(alias))
+            isnothing(alias) || (
+                entry["dependency_form"] = _julia_dependency_form(
+                    member = get(entry, "dependency_member", nothing),
+                    alias = alias,
+                )
+            )
         end
         return dependencies
     elseif node_kind == ":"
@@ -85,6 +136,10 @@ function _collect_julia_import!(
             line_start,
             line_end;
             dependency_kind = dependency_kind,
+            dependency_form = get(dependency, "dependency_form", "path"),
+            dependency_is_relative = get(dependency, "dependency_is_relative", false),
+            dependency_relative_level = get(dependency, "dependency_relative_level", 0),
+            dependency_local_name = get(dependency, "dependency_local_name", nothing),
             dependency_parent = get(dependency, "dependency_parent", nothing),
             dependency_member = get(dependency, "dependency_member", nothing),
             dependency_alias = get(dependency, "dependency_alias", nothing),
@@ -116,6 +171,10 @@ function _push_import!(
     line_start::Int,
     line_end::Int;
     dependency_kind::String,
+    dependency_form::String = "path",
+    dependency_is_relative::Bool = false,
+    dependency_relative_level::Int = 0,
+    dependency_local_name = nothing,
     dependency_parent = nothing,
     dependency_member = nothing,
     dependency_alias = nothing,
@@ -127,6 +186,7 @@ function _push_import!(
         entry ->
             String(entry["module"]) == import_name &&
                 String(get(entry, "dependency_kind", "import")) == dependency_kind &&
+                String(get(entry, "dependency_form", "path")) == dependency_form &&
                 String(get(entry, "dependency_parent", "")) ==
                 String(something(dependency_parent, "")) &&
                 String(get(entry, "dependency_member", "")) ==
@@ -149,6 +209,13 @@ function _push_import!(
                            "import",
                        ),
                    ) == dependency_kind &&
+                   String(
+                       get(
+                           get(node, "metadata", Dict{String,Any}()),
+                           "dependency_form",
+                           "path",
+                       ),
+                   ) == dependency_form &&
                    String(
                        get(
                            get(node, "metadata", Dict{String,Any}()),
@@ -196,6 +263,7 @@ function _push_import!(
         (
             import_name,
             dependency_kind,
+            dependency_form,
             String(something(dependency_parent, "")),
             String(something(dependency_member, "")),
             String(something(dependency_alias, "")),
@@ -206,10 +274,15 @@ function _push_import!(
         "module" => import_name,
         "dependency_kind" => dependency_kind,
         "dependency_target" => import_name,
+        "dependency_form" => dependency_form,
+        "dependency_is_relative" => dependency_is_relative,
+        "dependency_relative_level" => dependency_relative_level,
         "reexported" => reexported,
         "line_start" => line_start,
         "line_end" => line_end,
     )
+    isnothing(dependency_local_name) ||
+        (entry["dependency_local_name"] = String(dependency_local_name))
     isnothing(dependency_parent) || (entry["dependency_parent"] = String(dependency_parent))
     isnothing(dependency_member) || (entry["dependency_member"] = String(dependency_member))
     isnothing(dependency_alias) || (entry["dependency_alias"] = String(dependency_alias))
@@ -219,6 +292,11 @@ function _push_import!(
     metadata["module"] = import_name
     metadata["dependency_kind"] = dependency_kind
     metadata["dependency_target"] = import_name
+    metadata["dependency_form"] = dependency_form
+    metadata["dependency_is_relative"] = dependency_is_relative
+    metadata["dependency_relative_level"] = dependency_relative_level
+    isnothing(dependency_local_name) ||
+        (metadata["dependency_local_name"] = String(dependency_local_name))
     isnothing(dependency_parent) ||
         (metadata["dependency_parent"] = String(dependency_parent))
     isnothing(dependency_member) ||
@@ -251,6 +329,7 @@ function _push_include!(
         "path" => include_literal,
         "dependency_kind" => "include",
         "dependency_target" => include_literal,
+        "dependency_form" => "include",
         "line_start" => line_start,
         "line_end" => line_end,
     )
@@ -260,6 +339,7 @@ function _push_include!(
     metadata["path"] = include_literal
     metadata["dependency_kind"] = "include"
     metadata["dependency_target"] = include_literal
+    metadata["dependency_form"] = "include"
     _push_ast_node!(
         state,
         "include",
@@ -283,6 +363,11 @@ function _julia_dependency_summary_items(state::JuliaCollectionState)
                 "dependency_kind" => String(get(entry, "dependency_kind", "import")),
                 "dependency_target" =>
                     String(get(entry, "dependency_target", entry["module"])),
+                "dependency_form" => String(get(entry, "dependency_form", "path")),
+                "dependency_is_relative" => get(entry, "dependency_is_relative", nothing),
+                "dependency_relative_level" =>
+                    get(entry, "dependency_relative_level", nothing),
+                "dependency_local_name" => get(entry, "dependency_local_name", nothing),
                 "dependency_parent" => get(entry, "dependency_parent", nothing),
                 "dependency_member" => get(entry, "dependency_member", nothing),
                 "dependency_alias" => get(entry, "dependency_alias", nothing),
@@ -306,6 +391,11 @@ function _julia_dependency_summary_items(state::JuliaCollectionState)
                 "dependency_kind" => String(get(entry, "dependency_kind", "include")),
                 "dependency_target" =>
                     String(get(entry, "dependency_target", entry["path"])),
+                "dependency_form" => String(get(entry, "dependency_form", "include")),
+                "dependency_is_relative" => get(entry, "dependency_is_relative", nothing),
+                "dependency_relative_level" =>
+                    get(entry, "dependency_relative_level", nothing),
+                "dependency_local_name" => get(entry, "dependency_local_name", nothing),
                 "dependency_parent" => get(entry, "dependency_parent", nothing),
                 "dependency_member" => get(entry, "dependency_member", nothing),
                 "dependency_alias" => get(entry, "dependency_alias", nothing),

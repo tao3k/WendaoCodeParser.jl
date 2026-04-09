@@ -96,9 +96,9 @@ function _julia_symbol_name(node, source::String)
     elseif node_kind == "struct" ||
            node_kind == "struct-mut" ||
            node_kind == "abstract" ||
-           node_kind == "primitive" ||
-           node_kind == "module" ||
-           node_kind == "module-bare"
+           node_kind == "primitive"
+        return _julia_type_name(node, source)
+    elseif node_kind == "module" || node_kind == "module-bare"
         return _julia_first_identifier_text(node, source)
     end
     return nothing

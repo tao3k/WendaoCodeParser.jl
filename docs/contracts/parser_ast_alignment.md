@@ -161,32 +161,45 @@ Current native Julia detail coverage:
     `baremodule`
 11. richer Julia type classification through `type_kind = abstract_type` and
     `type_kind = primitive_type`
-12. parser-owned Julia function-header detail through
+12. parser-owned Julia type-header detail through `type_parameters`,
+    `type_supertype`, and primitive `primitive_bits`
+13. parser-owned Julia function-header detail through
     `function_positional_arity`, `function_keyword_arity`,
     `function_has_varargs`, `function_where_params`, and
     `function_return_type`
-13. parser-owned Julia function-parameter detail through
+14. parser-owned Julia function-parameter detail through
     `function_positional_params`, `function_keyword_params`,
     `function_defaulted_params`, `function_typed_params`,
     `function_positional_vararg_name`, and
     `function_keyword_vararg_name`
-14. same-scope Julia function methods are preserved as distinct parser rows
+15. same-scope Julia function methods are preserved as distinct parser rows
     and AST nodes instead of being collapsed by short name; consumers
     disambiguate methods through parser-owned `signature`, `line_start`,
     `line_end`, and base `path`
-15. Julia function parameters are now also materialized as parser-owned
+16. Julia function parameters are now also materialized as parser-owned
     summary items and AST nodes through `parameter_kind`,
     `parameter_type_name`, `parameter_default_value`,
     `parameter_is_typed`, `parameter_is_defaulted`,
     `parameter_is_vararg`, and method-level `target_path`
-16. shared dependency detail is now normalized through `dependency_kind`,
-    `dependency_target`, `dependency_parent`, `dependency_member`, and
-    `dependency_alias`, so parser-owned dependency semantics stay queryable
-    across `import`, `using`, and `include` without introducing a search-only
-    schema
-17. Julia dependency rows now retain native selective-import and alias
+17. shared dependency detail is now normalized through `dependency_kind`,
+    `dependency_form`, `dependency_target`, `dependency_is_relative`,
+    `dependency_relative_level`, `dependency_local_name`,
+    `dependency_parent`, `dependency_member`, and `dependency_alias`, so
+    parser-owned dependency semantics stay queryable across `import`,
+    `using`, and `include` without introducing a search-only schema
+18. Julia dependency rows now retain native selective-import and alias
     semantics such as `import CSV: read as rd` and `using DataFrames:
     DataFrame`, instead of collapsing them into one flat dependency string
+19. Julia dependency rows now also retain local binding names such as `rd`,
+    `DataFrame`, `BT`, `Utils`, and `foo`, so consumers can query the symbol
+    introduced into scope instead of inferring it from target strings
+20. Julia dependency rows now also retain syntax-form detail such as `path`,
+    `member`, `alias`, `aliased_member`, and `include`, so consumers can
+    distinguish import shapes without re-parsing the source text
+21. Julia dependency rows now also retain relative-import semantics such as
+    `using ..Parent: foo`, `import .Utils`, and
+    `import ..Core: bar as baz`, with explicit parser-owned
+    `dependency_is_relative` and `dependency_relative_level` detail
 
 Current Modelica summary groups:
 
@@ -215,10 +228,16 @@ Current native Modelica summary detail columns:
    `item_module_name`, `item_module_path`, `item_class_path`, and
    `item_target_path`
 8. shared dependency detail is now normalized through `dependency_kind`,
-   `dependency_target`, and `dependency_alias`, so Modelica `import` and
-   `extends` rows align with the Julia dependency contract without erasing
-   language-native groups
-9. current Modelica import alignment covers named imports and qualified
+   `dependency_form`, `dependency_target`, `dependency_local_name`, and
+   `dependency_alias`, so Modelica `import` and `extends` rows align with the Julia dependency
+   contract without erasing language-native groups
+9. current Modelica import alignment now exposes local binding names such as
+   `SI` and `Math`, so native search can query scope-visible Modelica imports
+   without splitting dependency targets
+10. current Modelica import alignment now also exposes syntax forms such as
+    `named_import`, `qualified_import`, and `extends`, so consumers can audit
+    native Modelica import shapes directly over Arrow rows
+11. current Modelica import alignment covers named imports and qualified
    imports; grouped imports are not yet part of the package contract because
    the upstream native parser bridge is not stable on that input in this lane
 
@@ -253,16 +272,17 @@ Current native AST query resolution rules:
 3. Julia search can therefore filter directly on provider-owned attributes such
    as `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
    `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
-   `binding_kind`, `type_kind`, `module_kind`, `dependency_kind`,
-   `dependency_target`, `dependency_parent`, `dependency_member`,
-   `dependency_alias`,
+   `binding_kind`, `type_kind`, `type_parameters`, `type_supertype`,
+   `primitive_bits`, `module_kind`, `dependency_kind`, `dependency_form`,
+   `dependency_target`, `dependency_is_relative`, `dependency_relative_level`, `dependency_local_name`,
+   `dependency_parent`, `dependency_member`, `dependency_alias`,
    `function_positional_arity`, `function_keyword_arity`,
    `function_has_varargs`, `function_where_params`, and
    `function_return_type`
 4. Modelica search can therefore filter directly on provider-owned attributes
    such as `owner_name`, `owner_path`, `class_path`, `dependency_kind`,
-   `dependency_target`, `dependency_alias`, `visibility`, `type_name`,
-   `variability`, `direction`, `component_kind`,
+   `dependency_form`, `dependency_target`, `dependency_local_name`, `dependency_alias`,
+   `visibility`, `type_name`, `variability`, `direction`, `component_kind`,
    `array_dimensions`, `default_value`, `start_value`, `modifier_names`,
    `unit`, `restriction`, `is_partial`, `is_final`, and `is_encapsulated`
 5. AST match rows now also project parser-owned structural fields into stable
@@ -294,8 +314,12 @@ Current checkpoint status:
     modifier names: done
 14. Julia function-header alignment for arity, varargs, `where`, and return
     annotations: done
-15. Rust summary-surface replacement in `xiuxian-ast` callers: pending
-16. Rust-visible AST search promotion: pending
+15. dependency local-name alignment across Julia and Modelica imports: done
+16. dependency syntax-form alignment across Julia and Modelica imports: done
+17. Julia type-header alignment for type parameters, supertypes, and primitive
+    bit widths: done
+18. Rust summary-surface replacement in `xiuxian-ast` callers: pending
+19. Rust-visible AST search promotion: pending
 
 Current compatibility risk to track:
 
@@ -303,8 +327,10 @@ Current compatibility risk to track:
    summary fields now map cleanly to module, import, symbol, docstring,
    include, reexport, parser-owned line-span semantics, scoped module
    ownership, top-level binding kinds, macro definitions, module-kind
-   normalization, richer type-kind normalization, and parser-owned
-   function-header semantics
+   normalization, richer type-kind normalization, parser-owned
+   function-header semantics, parser-owned dependency local names,
+   parser-owned dependency syntax forms, and parser-owned Julia type-header
+   detail
 2. Modelica compatibility is now materially closer than before, but it is
    still thinner than the old Rust `ModelicaFileSummary` because the old Rust
    surface nests component detail inside class symbols, while the native Arrow

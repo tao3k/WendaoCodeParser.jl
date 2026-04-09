@@ -249,11 +249,10 @@ function _collect_julia_type!(
     line_starts::Vector{Int},
     context::JuliaScopeContext,
 )
-    symbol_name = _julia_first_identifier_text(node, source)
+    symbol_name = _julia_type_name(node, source)
     isnothing(symbol_name) && return nothing
     line_start, line_end = _julia_line_span(node, line_starts)
     signature = _julia_node_signature(node, source)
-    type_kind = _julia_type_kind(node, source)
     _push_symbol!(
         state,
         something(symbol_name),
@@ -262,8 +261,7 @@ function _collect_julia_type!(
         line_start,
         line_end,
         context;
-        metadata = isnothing(type_kind) ? Dict{String,Any}() :
-                   Dict{String,Any}("type_kind" => type_kind),
+        metadata = _julia_type_header_metadata(node, source),
     )
     return nothing
 end

@@ -1,6 +1,7 @@
 include("state.jl")
 include("emit.jl")
 include("syntax.jl")
+include("types.jl")
 include("dependencies.jl")
 include("summary.jl")
 include("parameters.jl")

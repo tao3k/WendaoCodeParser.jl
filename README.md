@@ -81,25 +81,27 @@ Parser layout note:
 5. `src/parsers/julia/emit.jl` owns Julia summary and AST row emission helpers
 6. `src/parsers/julia/syntax.jl` owns `JuliaSyntax.SyntaxNode` inspection,
    naming, and line-span helpers
-7. `src/parsers/julia/dependencies.jl` owns Julia `import`, `using`,
+7. `src/parsers/julia/types.jl` owns parser-native Julia type-header
+   extraction such as type parameters, supertypes, and primitive bit widths
+8. `src/parsers/julia/dependencies.jl` owns Julia `import`, `using`,
    `include`, and shared dependency normalization
-8. `src/parsers/julia/functions.jl` owns parser-native Julia function-header
+9. `src/parsers/julia/functions.jl` owns parser-native Julia function-header
    extraction such as arity, varargs, `where` clauses, and return annotations
-9. `src/parsers/julia/collect.jl` owns SyntaxNode traversal and Julia summary
+10. `src/parsers/julia/collect.jl` owns SyntaxNode traversal and Julia summary
    or AST state collection
-10. `src/parsers/modelica/backend.jl` now only owns the `OMParser.jl` native
+11. `src/parsers/modelica/backend.jl` now only owns the `OMParser.jl` native
    bridge and shared-library/runtime bootstrap
-11. `src/parsers/modelica/nodes.jl` owns generic Modelica AST node
+12. `src/parsers/modelica/nodes.jl` owns generic Modelica AST node
     materialization
-12. `src/parsers/modelica/dependencies.jl` owns Modelica `import` / `extends`
+13. `src/parsers/modelica/dependencies.jl` owns Modelica `import` / `extends`
     emission plus shared dependency summary shaping
-13. `src/parsers/modelica/collect.jl` owns Modelica state collection, cache
+14. `src/parsers/modelica/collect.jl` owns Modelica state collection, cache
     lifecycle, expression normalization, and non-dependency AST traversal
-14. `src/parsers/modelica/summary.jl` owns Modelica summary shaping over the
+15. `src/parsers/modelica/summary.jl` owns Modelica summary shaping over the
    collected state
-15. `src/search/` consumes those language-owned state collectors instead of
+16. `src/search/` consumes those language-owned state collectors instead of
    reimplementing parser traversal logic
-16. `src/search/query/` now splits AST query parsing, node filtering, and
+17. `src/search/query/` now splits AST query parsing, node filtering, and
    match projection into focused files, so parser-side search semantics do not
    grow back into one flat query source
 
@@ -114,10 +116,13 @@ Contract note:
    `item_owner_name`, `item_owner_kind`, `item_owner_path`,
    `item_module_name`, `item_module_path`, `item_class_path`,
    `item_target_path`, `item_line_start`, `item_line_end`,
-   `item_dependency_kind`, `item_dependency_target`,
+   `item_dependency_kind`, `item_dependency_form`,
+   `item_dependency_target`, `item_dependency_is_relative`,
+   `item_dependency_relative_level`, `item_dependency_local_name`,
    `item_dependency_parent`, `item_dependency_member`,
    `item_dependency_alias`,
-   `item_binding_kind`, `item_type_kind`, `item_is_partial`,
+   `item_binding_kind`, `item_type_kind`, `item_type_parameters`,
+   `item_type_supertype`, `item_primitive_bits`, `item_is_partial`,
    `item_is_encapsulated`, `item_component_kind`,
    `item_array_dimensions`, `item_default_value`, `item_start_value`,
    `item_modifier_names`, `item_unit`,
@@ -131,13 +136,16 @@ Contract note:
 4. AST responses return one `ast_match_rows` Arrow row per match, with fields
    such as `match_index`, `match_node_kind`, `match_name`, `match_text`,
    `match_signature`, `match_target_kind`, `match_module`, `match_path`,
-   `match_module_kind`, `match_dependency_kind`, `match_dependency_target`,
+   `match_module_kind`, `match_dependency_kind`, `match_dependency_form`,
+   `match_dependency_target`, `match_dependency_is_relative`,
+   `match_dependency_relative_level`, `match_dependency_local_name`,
    `match_dependency_parent`, `match_dependency_member`,
    `match_dependency_alias`,
    `match_owner_name`, `match_owner_kind`,
    `match_owner_path`, `match_module_name`, `match_module_path`,
    `match_class_path`, `match_target_path`, `match_binding_kind`,
-   `match_type_kind`, `match_function_positional_arity`,
+   `match_type_kind`, `match_type_parameters`, `match_type_supertype`,
+   `match_primitive_bits`, `match_function_positional_arity`,
    `match_function_keyword_arity`, `match_function_has_varargs`,
    `match_function_where_params`, `match_function_return_type`,
    `match_array_dimensions`, `match_start_value`, `match_modifier_names`,
@@ -149,57 +157,85 @@ Contract note:
    normalization for `module` versus `baremodule`, explicit `type_kind`
    normalization for `struct`, `mutable_struct`, `abstract_type`, and
    `primitive_type`, and source-accurate line spans
-6. Julia function rows now also expose parser-owned function-header detail
+6. Julia type rows now also expose parser-owned type-header detail such as
+   `type_parameters`, `type_supertype`, and `primitive_bits`, so generic and
+   primitive declaration structure stays queryable without re-parsing the
+   signature string on the search side
+7. Julia function rows now also expose parser-owned function-header detail
    from `JuliaSyntax.jl`, including positional arity, keyword arity,
    varargs, `where` parameters, return annotations, positional parameter
    names, keyword parameter names, defaulted parameter names, typed parameter
    names, and explicit positional or keyword vararg names
-7. same-scope Julia function methods are now preserved as distinct summary and
+8. same-scope Julia function methods are now preserved as distinct summary and
    AST rows instead of being collapsed by short name; consumers can
    disambiguate methods with parser-owned `signature` plus source span, while
    `path` exposes the stable base symbol path
-8. Julia parameter rows now also expose one parser-owned summary item and AST
+9. Julia parameter rows now also expose one parser-owned summary item and AST
    node per parameter, including `parameter_kind`, `parameter_type_name`,
    `parameter_default_value`, `parameter_is_typed`,
    `parameter_is_defaulted`, `parameter_is_vararg`, plus method-level
    `target_path` so overloaded methods can be audited without flattening
-9. Julia docstring rows now separate the doc-literal span
+10. Julia docstring rows now separate the doc-literal span
    (`line_start` / `line_end`) from the bound declaration span
    (`target_line_start` / `target_line_end`), so search consumers do not need
    to guess which semantic the parser encoded
-10. Julia dependency rows now preserve parser-owned dependency semantics
+11. Julia dependency rows now preserve parser-owned dependency semantics
     through shared `dependency_kind`, `dependency_target`,
-    `dependency_parent`, `dependency_member`, and `dependency_alias`
-    fields, so `import`, `using`, and `include` can be queried through one
-    normalized dependency contract without replacing the existing
-    language-native groups
-11. Modelica documentation comments are normalized before they become summary
+    `dependency_is_relative`, `dependency_relative_level`,
+    `dependency_local_name`, `dependency_parent`, `dependency_member`, and
+    `dependency_alias` fields, so `import`, `using`, and `include` can be
+    queried through one normalized dependency contract without replacing the
+    existing language-native groups
+12. Julia dependency rows now also preserve parser-owned local binding names
+    such as `rd`, `DataFrame`, `BT`, `Utils`, and `foo`, so search can query
+    the name that becomes visible in the current scope instead of re-deriving
+    it from alias, member, or target strings
+13. Julia dependency rows now also preserve parser-owned syntax forms such as
+    `path`, `member`, `alias`, `aliased_member`, and `include`, so search can
+    distinguish direct imports, selective imports, aliased imports, and
+    include edges without re-parsing the dependency target
+14. Julia relative dependency rows now also preserve parser-owned leading-dot
+    semantics such as `using ..Parent: foo`, `import .Utils`, and
+    `import ..Core: bar as baz`, so search can query relative imports without
+    inferring dot depth from raw dependency strings
+15. Modelica documentation comments are normalized before they become summary
    items or AST nodes, so clients receive semantic content instead of raw
    `//`, `/*`, or `*` lexer markers
-12. the Modelica backend now keeps a bounded same-source parse-state cache in
+16. the Modelica backend now keeps a bounded same-source parse-state cache in
    the service process, keyed by exact `source_id` plus `source_text`, so
    repeated AST queries do not call `OMParser` again for unchanged input
-13. Modelica native summary rows now expose parser-side visibility, owner,
+17. Modelica native summary rows now expose parser-side visibility, owner,
    type-name, qualifier, equation, component-kind, array-dimension,
    default-value, modifier-name, start-value, and unit detail without
    widening into any Rust-side adapter work
-14. Modelica `import` and `extends` rows now also expose the same shared
+18. Modelica `import` and `extends` rows now also expose the same shared
     `dependency_kind`, `dependency_target`, and named-import
     `dependency_alias` detail used by Julia dependency rows, so parser-side
     search can audit dependency semantics without re-deriving language-specific
     targets in `src/search/`
-15. Modelica named imports now also expose parser-owned `dependency_alias`
+19. Modelica import rows now also expose parser-owned `dependency_local_name`
+    such as `SI` and `Math`, so the local binding visible in Modelica scope is
+    queryable over the native Arrow contract instead of being inferred from
+    target-path leaf segments
+20. Modelica dependency rows now also expose parser-owned syntax forms such as
+    `named_import`, `qualified_import`, and `extends`, so native search can
+    distinguish imported binding shapes without reconstructing the Modelica
+    source string on the host side
+21. Modelica named imports now also expose parser-owned `dependency_alias`
     detail, while grouped imports are still outside the current package
     contract because the upstream native parser bridge is not yet stable on
     that input shape
-16. AST search now resolves `attribute_key` against parser-owned top-level node
+22. AST search now resolves `attribute_key` against parser-owned top-level node
    fields first and then against parser-owned `metadata`, so search can reuse
    native provider detail instead of inventing parallel search-only schema
-17. parser-native AST search can now query Julia attributes such as
+23. parser-native AST search can now query Julia attributes such as
    `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
    `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
-   `path`, `dependency_kind`, `dependency_target`,
-   `dependency_parent`, `dependency_member`, `dependency_alias`,
+   `path`, `dependency_kind`, `dependency_form`, `dependency_target`,
+   `dependency_is_relative`, `dependency_relative_level`,
+   `dependency_local_name`, `dependency_parent`, `dependency_member`,
+   `dependency_alias`, `type_parameters`, `type_supertype`,
+   `primitive_bits`,
    `function_positional_arity`, `function_keyword_arity`,
    `function_has_varargs`, `function_where_params`, or
    `function_return_type`, `function_positional_params`,
@@ -210,26 +246,21 @@ Contract note:
    `parameter_is_typed`, `parameter_is_defaulted`, or
    `parameter_is_vararg`, and Modelica attributes such as
    `owner_name`, `owner_path`, `class_path`, `dependency_kind`,
-   `dependency_target`, `dependency_alias`, `visibility`, `type_name`,
+   `dependency_form`, `dependency_target`, `dependency_local_name`,
+   `dependency_alias`, `visibility`, `type_name`,
    `variability`, `direction`, `component_kind`, `array_dimensions`,
    `default_value`, `start_value`, `modifier_names`, `unit`,
    `restriction`, `is_partial`, `is_final`, or `is_encapsulated`
-18. scoped parser ownership now participates in dedup: repeated short names in
+24. scoped parser ownership now participates in dedup: repeated short names in
    different Julia modules or different Modelica class scopes are preserved as
    distinct AST nodes instead of being collapsed globally
-19. package tests are now split under `test/support/` and `test/cases/`, so
+25. package tests are now split under `test/support/` and `test/cases/`, so
    `test/runtests.jl` stays as a small runner instead of a monolithic file
-20. parser-specific Flight round-trip coverage is now isolated in
+26. parser-specific Flight round-trip coverage is now isolated in
    `test/cases/flight_native_columns.jl`, and mounted shared-service parser
    regressions are isolated under `WendaoSearch.jl/test/integration/`,
-   including `live_code_parser.jl` and `live_dependency_semantics.jl`
-
-The package also ships a focused helper for prebuilding the Modelica backend:
-
-```bash
-direnv exec . julia --project=. \
-  scripts/build_omparser.jl
-```
+   including `live_code_parser.jl`, `live_dependency_semantics.jl`,
+   `live_relative_dependencies.jl`, and `live_julia_type_headers.jl`
 
 GitHub Actions note:
 
