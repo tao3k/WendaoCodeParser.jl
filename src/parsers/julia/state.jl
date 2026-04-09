@@ -1,4 +1,5 @@
 struct JuliaScopeContext
+    top_level::Bool
     root_module_name::Union{Nothing,String}
     module_name::Union{Nothing,String}
     module_path::Union{Nothing,String}
@@ -8,7 +9,7 @@ struct JuliaScopeContext
 end
 
 JuliaScopeContext() =
-    JuliaScopeContext(nothing, nothing, nothing, nothing, nothing, nothing)
+    JuliaScopeContext(true, nothing, nothing, nothing, nothing, nothing, nothing)
 
 mutable struct JuliaCollectionState
     module_name::Union{Nothing,String}

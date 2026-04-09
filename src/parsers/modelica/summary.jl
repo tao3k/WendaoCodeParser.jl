@@ -51,6 +51,7 @@ function _modelica_summary_items(state::ModelicaCollectionState)
                     "owner_name" => get(metadata, "owner_name", nothing),
                     "owner_path" => get(metadata, "owner_path", nothing),
                     "class_path" => get(metadata, "class_path", nothing),
+                    "top_level" => get(metadata, "top_level", nothing),
                     "line_start" => get(entry, "line_start", nothing),
                     "line_end" => get(entry, "line_end", nothing),
                     "is_partial" => get(metadata, "is_partial", nothing),

@@ -3,7 +3,7 @@ function _julia_scope_key(context::JuliaScopeContext)
 end
 
 function _julia_scope_metadata(context::JuliaScopeContext)
-    metadata = Dict{String,Any}()
+    metadata = Dict{String,Any}("top_level" => context.top_level)
     isnothing(context.root_module_name) ||
         (metadata["root_module_name"] = context.root_module_name)
     isnothing(context.module_name) || (metadata["module_name"] = context.module_name)

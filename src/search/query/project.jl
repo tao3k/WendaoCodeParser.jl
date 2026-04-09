@@ -1,4 +1,4 @@
-const _AST_MATCH_CORE_METADATA_KEYS = ("target_kind", "module", "path")
+const _AST_MATCH_CORE_METADATA_KEYS = ("target_kind", "target_name", "module", "path")
 
 const _AST_MATCH_DEPENDENCY_METADATA_KEYS = (
     "dependency_kind",
@@ -14,6 +14,7 @@ const _AST_MATCH_DEPENDENCY_METADATA_KEYS = (
 
 const _AST_MATCH_SCOPE_METADATA_KEYS = (
     "module_kind",
+    "root_module_name",
     "owner_name",
     "owner_kind",
     "owner_path",
@@ -21,6 +22,7 @@ const _AST_MATCH_SCOPE_METADATA_KEYS = (
     "module_path",
     "class_path",
     "target_path",
+    "top_level",
     "reexported",
     "visibility",
 )
@@ -63,6 +65,7 @@ const _AST_MATCH_FUNCTION_METADATA_KEYS = (
 )
 
 const _AST_MATCH_PARAMETER_METADATA_KEYS = (
+    "owner_signature",
     "parameter_kind",
     "parameter_type_name",
     "parameter_default_value",

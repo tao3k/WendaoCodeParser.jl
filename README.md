@@ -114,8 +114,9 @@ Contract note:
    such as `module_name`, `module_kind`, `class_name`, and `restriction`,
    plus nullable detail columns such as `item_visibility`,
    `item_owner_name`, `item_owner_kind`, `item_owner_path`,
-   `item_module_name`, `item_module_path`, `item_class_path`,
-   `item_target_path`, `item_line_start`, `item_line_end`,
+   `item_root_module_name`, `item_module_name`, `item_module_path`,
+   `item_class_path`, `item_target_name`, `item_target_path`,
+   `item_top_level`, `item_line_start`, `item_line_end`,
    `item_dependency_kind`, `item_dependency_form`,
    `item_dependency_target`, `item_dependency_is_relative`,
    `item_dependency_relative_level`, `item_dependency_local_name`,
@@ -135,15 +136,17 @@ Contract note:
    there is no `query_json` fallback
 4. AST responses return one `ast_match_rows` Arrow row per match, with fields
    such as `match_index`, `match_node_kind`, `match_name`, `match_text`,
-   `match_signature`, `match_target_kind`, `match_module`, `match_path`,
-   `match_module_kind`, `match_dependency_kind`, `match_dependency_form`,
+   `match_signature`, `match_target_kind`, `match_target_name`,
+   `match_module`, `match_path`, `match_module_kind`,
+   `match_dependency_kind`, `match_dependency_form`,
    `match_dependency_target`, `match_dependency_is_relative`,
    `match_dependency_relative_level`, `match_dependency_local_name`,
    `match_dependency_parent`, `match_dependency_member`,
    `match_dependency_alias`,
    `match_owner_name`, `match_owner_kind`,
-   `match_owner_path`, `match_module_name`, `match_module_path`,
-   `match_class_path`, `match_target_path`, `match_binding_kind`,
+   `match_owner_path`, `match_root_module_name`, `match_module_name`,
+   `match_module_path`, `match_class_path`, `match_target_path`,
+   `match_top_level`, `match_binding_kind`,
    `match_type_kind`, `match_type_parameters`, `match_type_supertype`,
    `match_primitive_bits`, `match_function_positional_arity`,
    `match_function_keyword_arity`, `match_function_has_varargs`,
@@ -238,11 +241,18 @@ Contract note:
    so `attribute_equals` can match one list member and
    `match_attribute_value` reports the exact matched member instead of the
    whole serialized field
-25. parser-native AST search can now query Julia attributes such as
-   `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
-   `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
-   `path`, `dependency_kind`, `dependency_form`, `dependency_target`,
-   `dependency_is_relative`, `dependency_relative_level`,
+25. parser-native AST search now also treats parser-owned boolean and integer
+   fields as typed scalars during `attribute_equals`, so values such as
+   `function_has_varargs = true`, `function_positional_arity = 4`,
+   `dependency_relative_level = 2`, `is_partial = true`, or `line_start = 2`
+   are matched by native scalar equality instead of weak stringification;
+   `attribute_contains` remains textual or identifier-list specific
+26. parser-native AST search can now query Julia attributes such as
+   `reexported`, `target_kind`, `target_name`, `target_line_start`,
+   `target_line_end`, `root_module_name`, `top_level`, `module_name`, `module_path`,
+   `owner_name`, `owner_kind`, `owner_path`, `path`, `dependency_kind`,
+   `dependency_form`, `dependency_target`, `dependency_is_relative`,
+   `dependency_relative_level`,
    `dependency_local_name`, `dependency_parent`, `dependency_member`,
    `dependency_alias`, `type_parameters`, `type_supertype`,
    `primitive_bits`,
@@ -255,23 +265,39 @@ Contract note:
    `parameter_type_name`, `parameter_default_value`,
    `parameter_is_typed`, `parameter_is_defaulted`, or
    `parameter_is_vararg`, and Modelica attributes such as
-   `owner_name`, `owner_path`, `class_path`, `dependency_kind`,
-   `dependency_form`, `dependency_target`, `dependency_local_name`,
-   `dependency_alias`, `visibility`, `type_name`,
+   `owner_name`, `owner_path`, `class_path`, `top_level`,
+   `dependency_kind`, `dependency_form`, `dependency_target`,
+   `dependency_local_name`, `dependency_alias`, `visibility`, `type_name`,
    `variability`, `direction`, `component_kind`, `array_dimensions`,
    `default_value`, `start_value`, `modifier_names`, `unit`,
    `restriction`, `is_partial`, `is_final`, or `is_encapsulated`
-26. scoped parser ownership now participates in dedup: repeated short names in
+27. scoped parser ownership now participates in dedup: repeated short names in
    different Julia modules or different Modelica class scopes are preserved as
    distinct AST nodes instead of being collapsed globally
-27. package tests are now split under `test/support/` and `test/cases/`, so
+28. package tests are now split under `test/support/` and `test/cases/`, so
    `test/runtests.jl` stays as a small runner instead of a monolithic file
-28. parser-specific Flight round-trip coverage is now isolated in
+29. parser-specific Flight round-trip coverage is now isolated in
    `test/cases/flight_native_columns.jl`, and mounted shared-service parser
    regressions are isolated under `WendaoSearch.jl/test/integration/`,
    including `live_code_parser.jl`, `live_dependency_semantics.jl`,
    `live_relative_dependencies.jl`, `live_modelica_import_forms.jl`, and
    `live_julia_type_headers.jl`
+30. AST match rows now also promote parser-owned stable columns such as
+   `match_target_name`, `match_root_module_name`, `match_top_level`,
+   `match_reexported`, `match_visibility`, `match_type_name`,
+   `match_variability`, `match_direction`, `match_component_kind`,
+   `match_default_value`, `match_unit`, `match_is_partial`,
+   `match_is_final`, and `match_is_encapsulated`, so mounted consumers do not
+   have to recover those semantics only through `match_attribute_key` /
+   `match_attribute_value`
+31. Julia scope-owned rows now also propagate parser-owned `top_level`
+    semantics through summary and AST rows, so root-module declarations and
+    nested-module declarations stay distinguishable without reconstructing
+    scope only from `owner_path` or `module_path`
+32. Julia parameter rows now also expose parser-owned `owner_signature`
+    detail through summary and AST rows, so overloaded-method parameter
+    searches can disambiguate method ownership without relying only on
+    synthesized `target_path`
 
 GitHub Actions note:
 

@@ -96,6 +96,7 @@ function _collect_julia_module!(
     )
     block_node = _julia_first_child_of_kind(node, "block")
     child_context = JuliaScopeContext(
+        isnothing(context.module_path),
         root_module_name,
         module_name,
         module_path,

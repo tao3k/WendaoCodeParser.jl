@@ -180,7 +180,8 @@ Current native Julia detail coverage:
     summary items and AST nodes through `parameter_kind`,
     `parameter_type_name`, `parameter_default_value`,
     `parameter_is_typed`, `parameter_is_defaulted`,
-    `parameter_is_vararg`, and method-level `target_path`
+    `parameter_is_vararg`, method-level `target_path`, and
+    `owner_signature`
 17. shared dependency detail is now normalized through `dependency_kind`,
     `dependency_form`, `dependency_target`, `dependency_is_relative`,
     `dependency_relative_level`, `dependency_local_name`,
@@ -225,8 +226,9 @@ Current native Modelica summary detail columns:
    as `owner_path` and nested class identity through `class_path`
 7. parser-owned structural scope metadata is now promoted into stable native
    summary columns such as `item_owner_kind`, `item_owner_path`,
-   `item_module_name`, `item_module_path`, `item_class_path`, and
-   `item_target_path`
+   `item_root_module_name`, `item_module_name`, `item_module_path`,
+   `item_class_path`, `item_target_name`, `item_target_path`, and
+   `item_top_level`
 8. shared dependency detail is now normalized through `dependency_kind`,
    `dependency_form`, `dependency_target`, `dependency_local_name`, and
    `dependency_alias`, so Modelica `import` and `extends` rows align with the Julia dependency
@@ -281,28 +283,43 @@ Current native AST query resolution rules:
    list semantics during attribute filtering, so `attribute_equals` matches an
    individual member and `match_attribute_value` reports the matched member
    rather than the full serialized field
-4. Julia search can therefore filter directly on provider-owned attributes such
-   as `reexported`, `target_kind`, `target_line_start`, `target_line_end`,
-   `module_name`, `module_path`, `owner_name`, `owner_kind`, `owner_path`,
-   `binding_kind`, `type_kind`, `type_parameters`, `type_supertype`,
-   `primitive_bits`, `module_kind`, `dependency_kind`, `dependency_form`,
-   `dependency_target`, `dependency_is_relative`, `dependency_relative_level`, `dependency_local_name`,
-   `dependency_parent`, `dependency_member`, `dependency_alias`,
+4. parser-owned boolean and integer fields now also use native scalar equality
+   during `attribute_equals`, so fields such as `function_has_varargs`,
+   `function_positional_arity`, `dependency_relative_level`, `is_partial`, or
+   `line_start` are matched by typed value instead of stringification;
+   `attribute_contains` remains textual or identifier-list specific
+5. Julia search can therefore filter directly on provider-owned attributes such
+   as `reexported`, `target_kind`, `target_name`, `target_line_start`,
+   `target_line_end`, `root_module_name`, `top_level`, `module_name`, `module_path`,
+   `owner_name`, `owner_kind`, `owner_path`, `binding_kind`, `type_kind`,
+   `type_parameters`, `type_supertype`, `primitive_bits`, `module_kind`,
+   `dependency_kind`, `dependency_form`, `dependency_target`,
+   `dependency_is_relative`, `dependency_relative_level`,
+   `dependency_local_name`, `dependency_parent`, `dependency_member`, `dependency_alias`,
    `function_positional_arity`, `function_keyword_arity`,
    `function_has_varargs`, `function_where_params`, and
    `function_return_type`
-4. Modelica search can therefore filter directly on provider-owned attributes
-   such as `owner_name`, `owner_path`, `class_path`, `dependency_kind`,
-   `dependency_form`, `dependency_target`, `dependency_local_name`, `dependency_alias`,
-   `visibility`, `type_name`, `variability`, `direction`, `component_kind`,
-   `array_dimensions`, `default_value`, `start_value`, `modifier_names`,
-   `unit`, `restriction`, `is_partial`, `is_final`, and `is_encapsulated`
-5. AST match rows now also project parser-owned structural fields into stable
-   columns such as `match_target_kind`, `match_module`, `match_path`,
-   `match_owner_name`, `match_owner_kind`, `match_owner_path`,
-   `match_module_name`, `match_module_path`, `match_class_path`, and
-   `match_target_path`, so mounted consumers do not need to recover those
+6. Modelica search can therefore filter directly on provider-owned attributes
+   such as `owner_name`, `owner_path`, `class_path`, `top_level`,
+   `dependency_kind`, `dependency_form`, `dependency_target`,
+   `dependency_local_name`, `dependency_alias`, `visibility`, `type_name`,
+   `variability`, `direction`, `component_kind`, `array_dimensions`,
+   `default_value`, `start_value`, `modifier_names`, `unit`, `restriction`,
+   `is_partial`, `is_final`, and `is_encapsulated`
+7. AST match rows now also project parser-owned structural fields into stable
+   columns such as `match_target_kind`, `match_target_name`,
+   `match_module`, `match_path`, `match_owner_name`, `match_owner_kind`,
+   `match_owner_path`, `match_root_module_name`, `match_module_name`,
+   `match_module_path`, `match_class_path`, `match_target_path`, and
+   `match_top_level`, so mounted consumers do not need to recover those
    semantics only through `match_attribute_key` / `match_attribute_value`
+8. AST match rows now also project parser-owned qualifier and symbol-detail
+   fields into stable columns such as `match_reexported`, `match_visibility`,
+   `match_type_name`, `match_variability`, `match_direction`,
+   `match_component_kind`, `match_default_value`, `match_unit`,
+   `match_is_partial`, `match_is_final`, and `match_is_encapsulated`, so
+   mounted consumers can audit those native parser semantics directly over
+   Arrow rows
 
 ## 7. Alignment Tracker
 
@@ -330,8 +347,14 @@ Current checkpoint status:
 16. dependency syntax-form alignment across Julia and Modelica imports: done
 17. Julia type-header alignment for type parameters, supertypes, and primitive
     bit widths: done
-18. Rust summary-surface replacement in `xiuxian-ast` callers: pending
-19. Rust-visible AST search promotion: pending
+18. typed scalar search alignment for parser-owned bool/int fields: done
+19. AST match stable-column promotion for parser-owned qualifier and symbol
+    detail: done
+20. stable scope and target column promotion for summary and AST rows: done
+21. Julia top-level scope propagation across summary and AST rows: done
+22. Julia parameter owner-signature promotion across summary and AST rows: done
+23. Rust summary-surface replacement in `xiuxian-ast` callers: pending
+24. Rust-visible AST search promotion: pending
 
 Current compatibility risk to track:
 
