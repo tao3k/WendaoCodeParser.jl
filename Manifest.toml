@@ -397,8 +397,8 @@ version = "1.3.0"
 
 [[deps.OMParser]]
 deps = ["Absyn", "CodecZlib", "ExportAll", "Glob", "HTTP", "ImmutableList", "Inflate", "MacroTools", "MetaModelica", "Pkg", "Tar", "TarIterators", "ZipFile"]
-git-tree-sha1 = "45903025d96869ea59d6e85a0bae9b5dcf6858a1"
-repo-rev = "cebc0696407385e52496608fcc13e95a556da3b5"
+git-tree-sha1 = "1934799ca2e0cc2cc5a4d698a9cdacd8a8706bae"
+repo-rev = "09bb4b86670c0585834b0fb16c987ed09a6dec12"
 repo-url = "https://github.com/tao3k/OMParser.jl"
 uuid = "11f87224-cae7-4e99-a924-e50d12f62c59"
 version = "0.0.3"
