@@ -7,7 +7,6 @@ struct ParserRequest
     name_contains::Union{Nothing,String}
     text_contains::Union{Nothing,String}
     limit::Union{Nothing,Int}
-    query_json::Union{Nothing,String}
 end
 
 function ParserRequest(
@@ -19,7 +18,6 @@ function ParserRequest(
     name_contains = nothing,
     text_contains = nothing,
     limit = nothing,
-    query_json = nothing,
 )
     normalized_limit = isnothing(limit) ? nothing : Int(limit)
     return ParserRequest(
@@ -31,7 +29,6 @@ function ParserRequest(
         isnothing(name_contains) ? nothing : String(name_contains),
         isnothing(text_contains) ? nothing : String(text_contains),
         normalized_limit,
-        isnothing(query_json) ? nothing : String(query_json),
     )
 end
 
@@ -42,8 +39,9 @@ struct ParserResponse
     backend::String
     success::Bool
     primary_name::Union{Nothing,String}
-    payload_json::Union{Nothing,String}
     error_message::Union{Nothing,String}
+    summary_scalars::Dict{String,Any}
+    summary_items::Vector{Dict{String,Any}}
     match_count::Union{Nothing,Int}
     matches::Vector{Dict{String,Any}}
 end
@@ -55,8 +53,9 @@ function ParserResponse(
     backend::AbstractString;
     success::Bool,
     primary_name = nothing,
-    payload_json = nothing,
     error_message = nothing,
+    summary_scalars = Dict{String,Any}(),
+    summary_items = Dict{String,Any}[],
     match_count = nothing,
     matches = Dict{String,Any}[],
 )
@@ -69,9 +68,22 @@ function ParserResponse(
         String(backend),
         success,
         isnothing(primary_name) ? nothing : String(primary_name),
-        isnothing(payload_json) ? nothing : String(payload_json),
         isnothing(error_message) ? nothing : String(error_message),
+        _parser_normalize_dict(summary_scalars),
+        _parser_normalize_items(summary_items),
         normalized_match_count,
         normalized_matches,
     )
+end
+
+function _parser_normalize_dict(values)
+    normalized = Dict{String,Any}()
+    for (key, value) in pairs(values)
+        normalized[String(key)] = value
+    end
+    return normalized
+end
+
+function _parser_normalize_items(items)
+    return Dict{String,Any}[_parser_normalize_dict(item) for item in items]
 end

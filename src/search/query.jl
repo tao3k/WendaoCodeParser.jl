@@ -1,34 +1,11 @@
 function _parse_ast_query(request::ParserRequest)
-    if _has_typed_ast_query(request)
-        return AstQuery(
-            node_kind = request.node_kind,
-            name_equals = request.name_equals,
-            name_contains = request.name_contains,
-            text_contains = request.text_contains,
-            limit = request.limit,
-        )
-    end
-    isnothing(request.query_json) && error("AST query routes require typed query columns")
-    parsed = JSON3.read(request.query_json)
     return AstQuery(
-        node_kind = _json_property(parsed, :node_kind),
-        name_equals = _json_property(parsed, :name_equals),
-        name_contains = _json_property(parsed, :name_contains),
-        text_contains = _json_property(parsed, :text_contains),
-        limit = _json_property(parsed, :limit),
+        node_kind = request.node_kind,
+        name_equals = request.name_equals,
+        name_contains = request.name_contains,
+        text_contains = request.text_contains,
+        limit = request.limit,
     )
-end
-
-function _has_typed_ast_query(request::ParserRequest)
-    return !isnothing(request.node_kind) ||
-           !isnothing(request.name_equals) ||
-           !isnothing(request.name_contains) ||
-           !isnothing(request.text_contains) ||
-           !isnothing(request.limit)
-end
-
-function _json_property(object, field::Symbol)
-    return hasproperty(object, field) ? getproperty(object, field) : nothing
 end
 
 function _filter_ast_nodes(nodes::Vector{Dict{String,Any}}, query::AstQuery)

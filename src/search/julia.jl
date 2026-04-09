@@ -1,7 +1,7 @@
 function search_julia_ast(request::ParserRequest)
     try
         query = _parse_ast_query(request)
-        state = _collect_julia_state(request.source_text)
+        state = collect_julia_state(request.source_text)
         matches = _filter_ast_nodes(state.nodes, query)
         return ParserResponse(
             request.request_id,

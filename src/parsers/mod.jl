@@ -1,3 +1,2 @@
-include("julia_syntax.jl")
-include("modelica_backend.jl")
+include("julia.jl")
 include("modelica.jl")

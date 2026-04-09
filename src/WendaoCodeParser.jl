@@ -1,14 +1,13 @@
 module WendaoCodeParser
 
 import Absyn
-using JSON3
 using JuliaSyntax
 import Libdl
 using Logging
 using Tables
 using WendaoArrow
 
-const WENDAOCODEPARSER_SCHEMA_VERSION = "v2"
+const WENDAOCODEPARSER_SCHEMA_VERSION = "v3"
 const JULIA_FILE_SUMMARY_ROUTE = :julia_file_summary
 const JULIA_ROOT_SUMMARY_ROUTE = :julia_root_summary
 const MODELICA_FILE_SUMMARY_ROUTE = :modelica_file_summary

@@ -6,8 +6,9 @@ mutable struct ModelicaCollectionState
     extends::Vector{String}
     extend_set::Set{String}
     symbols::Vector{Dict{String,Any}}
-    symbol_set::Set{Tuple{String,String}}
+    symbol_set::Set{Tuple{String,String,String}}
     documentation::Vector{String}
+    equations::Vector{Dict{String,Any}}
     nodes::Vector{Dict{String,Any}}
 end
 
@@ -20,66 +21,20 @@ function ModelicaCollectionState()
         String[],
         Set{String}(),
         Dict{String,Any}[],
-        Set{Tuple{String,String}}(),
+        Set{Tuple{String,String,String}}(),
         String[],
+        Dict{String,Any}[],
         Dict{String,Any}[],
     )
 end
 
-const _omparser_backend_library_path = Ref{Union{Nothing,String}}(nothing)
-const _omparser_backend_library_handle = Ref{Union{Nothing,Ptr{Cvoid}}}(nothing)
-const _omparser_backend_parse_symbol = Ref{Union{Nothing,Ptr{Cvoid}}}(nothing)
-const _omparser_backend_error_message = Ref{Union{Nothing,String}}(nothing)
-const _omparser_backend_build_attempted = Ref(false)
-const _omparser_runtime_modules_loaded = Ref(false)
-const _omparser_backend_prewarmed = Ref(false)
-const _omparser_parse_call_count = Ref(0)
 const _modelica_state_cache_hit_count = Ref(0)
 const _modelica_state_cache_miss_count = Ref(0)
 const _MODELICA_STATE_CACHE_LIMIT = 16
 const _modelica_state_cache = Dict{Tuple{String,String},ModelicaCollectionState}()
 const _modelica_state_cache_order = Tuple{String,String}[]
 
-function ensure_omparser_backend!()
-    return _ensure_omparser_library_path!()
-end
-
-function prewarm_modelica_backend!()
-    _omparser_backend_prewarmed[] && return _ensure_omparser_library_path!()
-    _collect_modelica_state(
-        """
-        model WarmupCodeParser
-        end WarmupCodeParser;
-        """,
-        "WarmupCodeParser.mo",
-    )
-    _omparser_backend_prewarmed[] = true
-    return _ensure_omparser_library_path!()
-end
-
-function omparser_backend_available()
-    try
-        _ensure_omparser_library_path!()
-        return true
-    catch error
-        _record_omparser_error!(error)
-        return false
-    end
-end
-
-function omparser_backend_unavailable_reason()
-    try
-        library_path = _ensure_omparser_library_path!()
-        return "OMParser.jl backend available at $(library_path)"
-    catch error
-        _record_omparser_error!(error)
-        error_message =
-            something(_omparser_import_error_message(), sprint(showerror, error))
-        return "OMParser.jl backend unavailable: $(error_message)"
-    end
-end
-
-function _collect_modelica_state(source_text::AbstractString, source_id::AbstractString)
+function collect_modelica_state(source_text::AbstractString, source_id::AbstractString)
     cache_key = _modelica_state_cache_key(source_text, source_id)
     cached_state = get(_modelica_state_cache, cache_key, nothing)
     if !isnothing(cached_state)
@@ -91,7 +46,7 @@ function _collect_modelica_state(source_text::AbstractString, source_id::Abstrac
     program = _parse_modelica_program(source_text, source_id)
     state = ModelicaCollectionState()
     for class_ in program.classes
-        _collect_modelica_class!(state, class_; top_level = true)
+        _collect_modelica_class!(state, class_, source_text; top_level = true)
     end
     isnothing(state.primary_class) &&
         error("Modelica file summary requires at least one top-level class declaration")
@@ -125,8 +80,11 @@ end
 
 function _collect_modelica_class!(
     state::ModelicaCollectionState,
-    class_::Absyn.Class;
+    class_::Absyn.Class,
+    source_text::AbstractString;
     top_level::Bool,
+    visibility::String = "public",
+    owner_name::Union{Nothing,String} = nothing,
 )
     restriction = _modelica_restriction_name(class_.restriction)
     class_name = String(class_.name)
@@ -134,6 +92,15 @@ function _collect_modelica_class!(
         state.primary_class = class_name
         state.restriction = restriction
     end
+    class_metadata = Dict{String,Any}(
+        "restriction" => restriction,
+        "top_level" => top_level,
+        "visibility" => visibility,
+        "is_partial" => Bool(class_.partialPrefix),
+        "is_final" => Bool(class_.finalPrefix),
+        "is_encapsulated" => Bool(class_.encapsulatedPrefix),
+    )
+    isnothing(owner_name) || (class_metadata["owner_name"] = owner_name)
     _push_modelica_symbol!(
         state,
         class_name,
@@ -141,21 +108,26 @@ function _collect_modelica_class!(
         text = "$(restriction) $(class_name)",
         line_start = _line_start(class_.info),
         line_end = _line_end(class_.info),
-        metadata = Dict("restriction" => restriction, "top_level" => top_level),
+        metadata = class_metadata,
     )
-    _collect_modelica_class_body!(state, class_.body)
+    _collect_modelica_class_body!(state, class_name, class_.body, source_text)
     return nothing
 end
 
-function _collect_modelica_class_body!(state::ModelicaCollectionState, body::Absyn.ClassDef)
+function _collect_modelica_class_body!(
+    state::ModelicaCollectionState,
+    class_name::String,
+    body::Absyn.ClassDef,
+    source_text::AbstractString,
+)
     if body isa Absyn.PARTS
         for class_part in body.classParts
-            _collect_modelica_class_part!(state, class_part)
+            _collect_modelica_class_part!(state, class_name, class_part, source_text)
         end
     elseif body isa Absyn.CLASS_EXTENDS
         _push_modelica_extend!(state, String(body.baseClassName))
         for class_part in body.parts
-            _collect_modelica_class_part!(state, class_part)
+            _collect_modelica_class_part!(state, class_name, class_part, source_text)
         end
     end
     _maybe_push_modelica_documentation!(state, body)
@@ -164,12 +136,23 @@ end
 
 function _collect_modelica_class_part!(
     state::ModelicaCollectionState,
+    class_name::String,
     class_part::Absyn.ClassPart,
+    source_text::AbstractString,
 )
     if class_part isa Absyn.PUBLIC || class_part isa Absyn.PROTECTED
+        visibility = class_part isa Absyn.PROTECTED ? "protected" : "public"
         for element_item in class_part.contents
-            _collect_modelica_element_item!(state, element_item)
+            _collect_modelica_element_item!(
+                state,
+                element_item,
+                source_text;
+                visibility = visibility,
+                owner_name = class_name,
+            )
         end
+    elseif class_part isa Absyn.EQUATIONS
+        _collect_modelica_equations!(state, class_name, class_part.contents, source_text)
     end
     return nothing
 end
@@ -177,22 +160,50 @@ end
 function _collect_modelica_element_item!(
     state::ModelicaCollectionState,
     element_item::Absyn.ElementItem,
+    source_text::AbstractString;
+    visibility::String,
+    owner_name::String,
 )
     if element_item isa Absyn.ELEMENTITEM
-        _collect_modelica_element!(state, element_item.element)
+        _collect_modelica_element!(
+            state,
+            element_item.element,
+            source_text;
+            visibility = visibility,
+            owner_name = owner_name,
+        )
     elseif element_item isa Absyn.LEXER_COMMENT
         _push_modelica_documentation!(state, String(element_item.comment))
     end
     return nothing
 end
 
-function _collect_modelica_element!(state::ModelicaCollectionState, element::Absyn.Element)
+function _collect_modelica_element!(
+    state::ModelicaCollectionState,
+    element::Absyn.Element,
+    source_text::AbstractString;
+    visibility::String,
+    owner_name::String,
+)
     element isa Absyn.ELEMENT || return nothing
     spec = element.specification
     if spec isa Absyn.COMPONENTS
-        _collect_modelica_components!(state, spec, element.info)
+        _collect_modelica_components!(
+            state,
+            spec,
+            element.info;
+            visibility = visibility,
+            owner_name = owner_name,
+        )
     elseif spec isa Absyn.CLASSDEF
-        _collect_modelica_class!(state, spec.class_; top_level = false)
+        _collect_modelica_class!(
+            state,
+            spec.class_,
+            source_text;
+            top_level = false,
+            visibility = visibility,
+            owner_name = owner_name,
+        )
     elseif spec isa Absyn.IMPORT
         _push_modelica_import!(
             state,
@@ -216,6 +227,9 @@ function _collect_modelica_components!(
     state::ModelicaCollectionState,
     spec::Absyn.COMPONENTS,
     info,
+    ;
+    visibility::String,
+    owner_name::String,
 )
     type_name = _modelica_type_spec_string(spec.typeSpec)
     variability = _modelica_variability_name(spec.attributes.variability)
@@ -223,6 +237,9 @@ function _collect_modelica_components!(
     for component_item in spec.components
         component = component_item.component
         component_name = String(component.name)
+        component_kind = _modelica_component_kind(variability, direction)
+        default_value = _modelica_component_default_value(component)
+        unit = _modelica_component_unit(component)
         signature =
             _modelica_component_signature(type_name, component_name, variability, direction)
         _push_modelica_symbol!(
@@ -233,12 +250,52 @@ function _collect_modelica_components!(
             line_start = _line_start(info),
             line_end = _line_end(info),
             metadata = Dict(
-                "type" => type_name,
+                "type_name" => type_name,
                 "variability" => variability,
                 "direction" => direction,
+                "component_kind" => component_kind,
+                "default_value" => default_value,
+                "unit" => unit,
+                "visibility" => visibility,
+                "owner_name" => owner_name,
             ),
         )
         _maybe_push_modelica_comment!(state, component_item)
+    end
+    return nothing
+end
+
+function _collect_modelica_equations!(
+    state::ModelicaCollectionState,
+    owner_name::String,
+    contents,
+    source_text::AbstractString,
+)
+    for equation_item in contents
+        equation_item isa Absyn.EQUATIONITEM || continue
+        line_start = _line_start(equation_item.info)
+        line_end = _line_end(equation_item.info)
+        equation_text =
+            String(_modelica_source_span_text(source_text, line_start, line_end))
+        isempty(equation_text) && continue
+        equation_entry = Dict{String,Any}(
+            "owner_name" => owner_name,
+            "text" => equation_text,
+            "line_start" => line_start,
+            "line_end" => line_end,
+        )
+        push!(state.equations, equation_entry)
+        push!(
+            state.nodes,
+            _modelica_ast_node(
+                "equation",
+                owner_name;
+                text = equation_text,
+                line_start = line_start,
+                line_end = line_end,
+                metadata = Dict{String,Any}("owner_name" => owner_name),
+            ),
+        )
     end
     return nothing
 end
@@ -298,7 +355,8 @@ function _push_modelica_symbol!(
     line_end::Union{Nothing,Int} = nothing,
     metadata = Dict{String,Any}(),
 )
-    symbol_key = (symbol_name, node_kind)
+    owner_key = get(metadata, "owner_name", "")
+    symbol_key = (symbol_name, node_kind, String(owner_key))
     symbol_key in state.symbol_set && return nothing
     push!(state.symbol_set, symbol_key)
     symbol_metadata = Dict{String,Any}(metadata)
@@ -306,6 +364,8 @@ function _push_modelica_symbol!(
         "name" => symbol_name,
         "kind" => node_kind,
         "signature" => text,
+        "line_start" => line_start,
+        "line_end" => line_end,
         "metadata" => symbol_metadata,
     )
     push!(state.symbols, entry)
@@ -324,8 +384,18 @@ function _push_modelica_symbol!(
 end
 
 function _push_modelica_documentation!(state::ModelicaCollectionState, value::String)
-    isempty(strip(value)) && return nothing
-    push!(state.documentation, value)
+    normalized_value = String(_normalize_modelica_documentation(value))
+    isempty(normalized_value) && return nothing
+    push!(state.documentation, normalized_value)
+    push!(
+        state.nodes,
+        _modelica_ast_node(
+            "documentation",
+            normalized_value;
+            text = normalized_value,
+            metadata = Dict{String,Any}("content" => normalized_value),
+        ),
+    )
     return nothing
 end
 
@@ -368,188 +438,6 @@ function _modelica_ast_node(
         "signature" => text,
         "metadata" => Dict{String,Any}(metadata),
     )
-end
-
-function _parse_modelica_program(source_text::AbstractString, source_id::AbstractString)
-    _ensure_omparser_runtime_modules!()
-    _maybe_omparser_module() # ensure package side effects are loaded
-    symbol = _ensure_omparser_parse_symbol!()
-    _omparser_parse_call_count[] += 1
-    return ccall(
-        symbol,
-        Any,
-        (String, String, Int64, Int64),
-        String(source_text),
-        String(source_id),
-        Int64(1),
-        Int64(9999),
-    )
-end
-
-function _ensure_omparser_parse_symbol!()
-    symbol = _omparser_backend_parse_symbol[]
-    isnothing(symbol) || return symbol
-    handle = _ensure_omparser_library_handle!()
-    symbol = Libdl.dlsym(handle, :parseString)
-    _omparser_backend_parse_symbol[] = symbol
-    return symbol
-end
-
-function _ensure_omparser_runtime_modules!()
-    _omparser_runtime_modules_loaded[] && return nothing
-    # OMParser's native bridge resolves these modules from Main during parser
-    # initialization, so loading them only inside package modules is insufficient.
-    omparser = _maybe_omparser_module()
-    isnothing(omparser) &&
-        error("OMParser.jl is not installed in the current project environment")
-    _ensure_main_module_binding!(:Absyn, GlobalRef(@__MODULE__, :Absyn))
-    _ensure_main_module_binding!(:ImmutableList, GlobalRef(omparser, :ImmutableList))
-    _ensure_main_module_binding!(:MetaModelica, GlobalRef(omparser, :MetaModelica))
-    _omparser_runtime_modules_loaded[] = true
-    return nothing
-end
-
-function _ensure_main_module_binding!(name::Symbol, global_ref::GlobalRef)
-    isdefined(Main, name) && return nothing
-    Core.eval(Main, Expr(:(=), name, global_ref))
-    return nothing
-end
-
-function _ensure_omparser_library_path!()
-    cached_path = _omparser_backend_library_path[]
-    if !isnothing(cached_path) && isfile(cached_path)
-        return cached_path
-    end
-    root = _omparser_root()
-    local library_path = _find_omparser_library(root)
-    if isnothing(library_path)
-        _download_omparser_release_if_possible!(root)
-        library_path = _find_omparser_library(root)
-    end
-    if isnothing(library_path)
-        _build_omparser_from_source!(root)
-        library_path = _find_omparser_library(root)
-    end
-    isnothing(library_path) && error(
-        "OMParser.jl source build completed, but no parser shared library was found under $(joinpath(root, "lib"))",
-    )
-    _omparser_backend_library_path[] = library_path
-    _omparser_backend_library_handle[] = nothing
-    _omparser_backend_error_message[] = nothing
-    return library_path
-end
-
-function _ensure_omparser_library_handle!()
-    library_path = _ensure_omparser_library_path!()
-    handle = _omparser_backend_library_handle[]
-    isnothing(handle) || return handle
-    handle = Libdl.dlopen(library_path)
-    _omparser_backend_library_handle[] = handle
-    _omparser_backend_parse_symbol[] = nothing
-    return handle
-end
-
-function _download_omparser_release_if_possible!(root::AbstractString)
-    os_name = _omparser_release_os_name()
-    isnothing(os_name) && return nothing
-    ext_dir = joinpath(root, "lib", "ext")
-    mkpath(ext_dir)
-    julia_version = "$(VERSION.major).$(VERSION.minor)"
-    release_tag = "Latest-$(os_name)-julia-$(julia_version)"
-    archive_name = "parser-library-$(os_name)-julia-$(julia_version).zip"
-    tarball_name = "$(os_name)-julia-$(julia_version)-library.tar.gz"
-    archive_url = "https://github.com/OpenModelica/OMParser.jl/releases/download/$(release_tag)/$(archive_name)"
-    shell = something(Sys.which("bash"), Sys.which("sh"))
-    isnothing(shell) && return nothing
-    shared_dir = joinpath(ext_dir, "shared")
-    archive_path = joinpath(ext_dir, archive_name)
-    tarball_path = joinpath(ext_dir, tarball_name)
-    script = """
-    set -euo pipefail
-    cd '$(replace(ext_dir, "'" => "'\"'\"'"))'
-    rm -rf '$(replace(shared_dir, "'" => "'\"'\"'"))'
-    mkdir -p '$(replace(shared_dir, "'" => "'\"'\"'"))'
-    curl -fsSL '$(archive_url)' -o '$(replace(archive_path, "'" => "'\"'\"'"))'
-    unzip -o '$(replace(archive_path, "'" => "'\"'\"'"))' '$(tarball_name)'
-    tar -xzf '$(replace(tarball_path, "'" => "'\"'\"'"))' -C '$(replace(shared_dir, "'" => "'\"'\"'"))'
-    """
-    @info "Attempting OMParser.jl release artifact download" archive_url
-    try
-        run(Cmd([shell, "-lc", script]))
-    catch error
-        @warn "OMParser.jl release artifact download failed; falling back to source build" error =
-            sprint(showerror, error)
-    end
-    return nothing
-end
-
-function _build_omparser_from_source!(root::AbstractString)
-    parser_dir = joinpath(root, "lib", "parser")
-    isdir(parser_dir) ||
-        error("OMParser.jl parser source directory is missing at $(parser_dir)")
-    if _omparser_backend_build_attempted[] && !isnothing(_omparser_backend_error_message[])
-        error(_omparser_backend_error_message[])
-    end
-    _omparser_backend_build_attempted[] = true
-    build_dir = joinpath(root, "lib", "build")
-    isdir(build_dir) && rm(build_dir; recursive = true, force = true)
-    semver_script = joinpath(parser_dir, "common", "semver.sh")
-    isfile(semver_script) && chmod(semver_script, 0o755)
-    @info "OMParser.jl shared library missing; building from source" parser_dir
-    shell = something(Sys.which("bash"), Sys.which("sh"))
-    isnothing(shell) && error("OMParser.jl source build requires bash or sh on PATH")
-    script = """
-    set -euo pipefail
-    cd '$(replace(parser_dir, "'" => "'\"'\"'"))'
-    autoconf
-    ./configure
-    make
-    """
-    try
-        run(Cmd([shell, "-lc", script]))
-    catch error
-        message = "official source build failed under $(parser_dir): $(sprint(showerror, error))"
-        _omparser_backend_error_message[] = message
-        rethrow(ErrorException(message))
-    end
-    @info "OMParser.jl source build finished" parser_dir
-    return nothing
-end
-
-function _find_omparser_library(root::AbstractString)
-    for search_root in
-        (joinpath(root, "lib", "build", "lib"), joinpath(root, "lib", "ext", "shared"))
-        isdir(search_root) || continue
-        for (dirpath, _, files) in walkdir(search_root)
-            for file in files
-                file == _omparser_library_name() && return joinpath(dirpath, file)
-            end
-        end
-    end
-    return nothing
-end
-
-function _omparser_root()
-    omparser = _maybe_omparser_module()
-    if !isnothing(omparser)
-        package_path = pathof(omparser)
-        isnothing(package_path) || return normpath(joinpath(dirname(package_path), ".."))
-    end
-    package_path = Base.find_package("OMParser")
-    isnothing(package_path) &&
-        error("OMParser.jl is not installed in the current project environment")
-    return normpath(joinpath(dirname(package_path), ".."))
-end
-
-_omparser_library_name() =
-    Sys.iswindows() ? "libomparse-julia.dll" :
-    Sys.islinux() ? "libomparse-julia.so" : "libomparse-julia.dylib"
-
-function _omparser_release_os_name()
-    Sys.isapple() && return "macos-latest"
-    Sys.islinux() && return "ubuntu-latest"
-    Sys.iswindows() && return "windows-latest"
-    return nothing
 end
 
 function _modelica_restriction_name(restriction)
@@ -629,36 +517,148 @@ function _modelica_component_signature(
            "$(join(prefixes, " ")) $(type_name) $(component_name)"
 end
 
+function _modelica_component_kind(variability::String, direction::String)
+    direction == "input" && return "input_connector"
+    direction == "output" && return "output_connector"
+    variability == "parameter" && return "parameter"
+    variability == "constant" && return "constant"
+    return "variable"
+end
+
+function _modelica_component_default_value(component)
+    classmod = _modelica_component_classmod(component)
+    isnothing(classmod) && return nothing
+    expression = _modelica_eqmod_expression(getproperty(classmod, :eqMod))
+    isnothing(expression) && return nothing
+    return _modelica_expression_string(expression)
+end
+
+function _modelica_component_unit(component)
+    classmod = _modelica_component_classmod(component)
+    isnothing(classmod) && return nothing
+    for element_arg in collect(getproperty(classmod, :elementArgLst))
+        element_arg isa Absyn.MODIFICATION || continue
+        path_name = _modelica_path_string(getproperty(element_arg, :path))
+        path_name == "unit" || continue
+        nested_classmod = _modelica_option_data(getproperty(element_arg, :modification))
+        isnothing(nested_classmod) && continue
+        expression = _modelica_eqmod_expression(getproperty(nested_classmod, :eqMod))
+        isnothing(expression) && continue
+        return _modelica_expression_string(expression; unquote_strings = true)
+    end
+    return nothing
+end
+
+function _modelica_component_classmod(component)
+    hasproperty(component, :modification) || return nothing
+    return _modelica_option_data(getproperty(component, :modification))
+end
+
+function _modelica_option_data(value)
+    isnothing(value) && return nothing
+    hasproperty(value, :data) || return nothing
+    return getproperty(value, :data)
+end
+
+function _modelica_eqmod_expression(value)
+    value isa Absyn.EQMOD || return nothing
+    return getproperty(value, :exp)
+end
+
+function _modelica_expression_string(expression; unquote_strings::Bool = false)
+    if expression isa Absyn.INTEGER || expression isa Absyn.REAL
+        return string(getproperty(expression, :value))
+    elseif expression isa Absyn.STRING
+        value = String(getproperty(expression, :value))
+        return unquote_strings ? value : "\"$(value)\""
+    elseif expression isa Absyn.BOOL
+        return Bool(getproperty(expression, :value)) ? "true" : "false"
+    elseif expression isa Absyn.CREF
+        return _modelica_component_ref_string(getproperty(expression, :componentRef))
+    elseif expression isa Absyn.BINARY
+        left = _modelica_expression_string(getproperty(expression, :exp1))
+        right = _modelica_expression_string(getproperty(expression, :exp2))
+        op = _modelica_operator_string(getproperty(expression, :op))
+        return "$(left) $(op) $(right)"
+    elseif expression isa Absyn.UNARY
+        op = _modelica_operator_string(getproperty(expression, :op))
+        inner = _modelica_expression_string(getproperty(expression, :exp))
+        return "$(op)$(inner)"
+    end
+    return string(expression)
+end
+
+function _modelica_component_ref_string(component_ref)
+    if component_ref isa Absyn.CREF_IDENT
+        return String(getproperty(component_ref, :name))
+    elseif component_ref isa Absyn.CREF_QUAL
+        prefix = String(getproperty(component_ref, :name))
+        suffix = _modelica_component_ref_string(getproperty(component_ref, :componentRef))
+        return "$(prefix).$(suffix)"
+    elseif component_ref isa Absyn.CREF_FULLYQUALIFIED
+        return "." *
+               _modelica_component_ref_string(getproperty(component_ref, :componentRef))
+    end
+    return string(component_ref)
+end
+
+function _modelica_operator_string(operator)
+    operator isa Absyn.ADD && return "+"
+    operator isa Absyn.SUB && return "-"
+    operator isa Absyn.MUL && return "*"
+    operator isa Absyn.DIV && return "/"
+    operator isa Absyn.POW && return "^"
+    operator isa Absyn.UMINUS && return "-"
+    operator isa Absyn.UPLUS && return "+"
+    return lowercase(String(nameof(typeof(operator))))
+end
+
 function _modelica_option_string(value)
     isnothing(value) && return ""
     hasproperty(value, :value) || return string(value)
     return _modelica_option_string(getproperty(value, :value))
 end
 
+function _normalize_modelica_documentation(value::AbstractString)
+    text = replace(String(value), "\r\n" => "\n", "\r" => "\n")
+    startswith(text, "/*") && (text = replace(text, r"^/\*" => ""))
+    endswith(text, "*/") && (text = replace(text, r"\*/$" => ""))
+    normalized_lines = String[]
+    for line in split(text, '\n'; keepempty = true)
+        stripped = lstrip(line)
+        if startswith(stripped, "//")
+            push!(normalized_lines, strip(stripped[3:end]))
+        elseif startswith(stripped, "*")
+            push!(normalized_lines, strip(stripped[2:end]))
+        else
+            push!(normalized_lines, rstrip(line))
+        end
+    end
+    while !isempty(normalized_lines) && isempty(normalized_lines[1])
+        popfirst!(normalized_lines)
+    end
+    while !isempty(normalized_lines) && isempty(normalized_lines[end])
+        pop!(normalized_lines)
+    end
+    return strip(join(normalized_lines, "\n"))
+end
+
+function _modelica_source_span_text(
+    source_text::AbstractString,
+    line_start::Union{Nothing,Int},
+    line_end::Union{Nothing,Int},
+)
+    isnothing(line_start) && return ""
+    isnothing(line_end) && return ""
+    lines = split(String(source_text), '\n'; keepempty = true)
+    isempty(lines) && return ""
+    first_line = clamp(Int(line_start), 1, length(lines))
+    last_line = clamp(Int(line_end), first_line, length(lines))
+    return strip(join(lines[first_line:last_line], "\n"))
+end
+
 _line_start(info) = isnothing(info) ? nothing : Int(getproperty(info, :lineNumberStart))
 _line_end(info) = isnothing(info) ? nothing : Int(getproperty(info, :lineNumberEnd))
-
-function _record_omparser_error!(error)
-    global _omparser_import_error = sprint(showerror, error)
-    _omparser_backend_error_message[] = _omparser_import_error
-    return nothing
-end
-
-function _maybe_omparser_module()
-    isdefined(@__MODULE__, :OMParser) &&
-        return Base.invokelatest(getfield, @__MODULE__, :OMParser)
-    try
-        @eval import OMParser
-        return Base.invokelatest(getfield, @__MODULE__, :OMParser)
-    catch error
-        _record_omparser_error!(error)
-        return nothing
-    end
-end
-
-function _omparser_import_error_message()
-    return @isdefined(_omparser_import_error) ? _omparser_import_error : nothing
-end
 
 function _reset_omparser_backend_state!()
     handle = _omparser_backend_library_handle[]
