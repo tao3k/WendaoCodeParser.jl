@@ -353,7 +353,12 @@ Current checkpoint status:
 20. stable scope and target column promotion for summary and AST rows: done
 21. Julia top-level scope propagation across summary and AST rows: done
 22. Julia parameter owner-signature promotion across summary and AST rows: done
-23. Rust summary-surface replacement in `xiuxian-ast` callers: pending
+23. Rust summary-surface replacement in `xiuxian-ast` callers: in progress
+    (`xiuxian-wendao-julia` parser-summary client plus the
+    `xiuxian-wendao` incremental host path no longer instantiate
+    `TreeSitterJuliaParser` in the touched Julia slice, and the touched Rust
+    surface now treats missing or disabled `parser_summary_transport` config as
+    an explicit Flight-contract failure)
 24. Rust-visible AST search promotion: pending
 
 Current compatibility risk to track:
@@ -384,13 +389,16 @@ The next bounded implementation steps under this docs contract are:
    Rust Flight-backed adapter
 2. land that adapter in the consuming search, graph, or runtime layer rather
    than in this package
-3. align the adapter output with `JuliaFileSummary`, `JuliaSourceSummary`, and
+3. keep the touched Julia consumer surface on a Flight-only contract without
+   reintroducing a Rust-local parser fallback or optional parser-summary
+   transport semantics when parser-summary materialization fails
+4. align the adapter output with `JuliaFileSummary`, `JuliaSourceSummary`, and
    the currently used subset of `ModelicaFileSummary`
-4. audit whether Rust consumers need nested component reconstruction or can
+5. audit whether Rust consumers need nested component reconstruction or can
    consume the native flattened Arrow rows keyed by `owner_name`
-5. keep parser-package tests split across bounded `test/cases/` files so the
+6. keep parser-package tests split across bounded `test/cases/` files so the
    parser runner does not grow back into a monolithic integration surface
-6. keep mounted parser regressions isolated in dedicated shared-service test
+7. keep mounted parser regressions isolated in dedicated shared-service test
    modules instead of expanding general live-service files
-7. only then decide which native AST search capabilities should become
+8. only then decide which native AST search capabilities should become
    Rust-visible traits or route contracts

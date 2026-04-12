@@ -160,3 +160,125 @@
         ),
     ) == ["Demo", "Demo.Inner"]
 end
+
+@testset "Flight summary rows bound heavy parser text fields for transport" begin
+    long_documentation = repeat("Modelica package documentation line. ", 800)
+    response = parse_modelica_file_summary(
+        ParserRequest(
+            "req-flight-modelica-heavy-summary",
+            "Heavy.mo",
+            """
+            model Heavy
+              Real y;
+              // $(long_documentation)
+            equation
+              y = y + 1;
+            end Heavy;
+            """,
+        ),
+    )
+    @test response.success
+
+    documentation_item = first(
+        item for item in response.summary_items if item["group"] == "documentation"
+    )
+    @test length(String(documentation_item["content"])) >
+          WendaoCodeParser.PARSER_SUMMARY_HEAVY_TEXT_MAX_CHARS
+
+    summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
+    summary_columns = Tables.columntable(summary_table)
+
+    documentation_index = findfirst(
+        ==("documentation"),
+        summary_columns.item_group,
+    )
+    @test !isnothing(documentation_index)
+
+    documentation_payload = String(summary_columns.item_content[documentation_index])
+    @test endswith(
+        documentation_payload,
+        WendaoCodeParser.PARSER_SUMMARY_HEAVY_TEXT_TRUNCATION_SUFFIX,
+    )
+    @test length(documentation_payload) <=
+          WendaoCodeParser.PARSER_SUMMARY_HEAVY_TEXT_MAX_CHARS +
+          length(WendaoCodeParser.PARSER_SUMMARY_HEAVY_TEXT_TRUNCATION_SUFFIX)
+end
+
+@testset "Flight summary rows roundtrip large transport payloads through a single batch" begin
+    response = ParserResponse(
+        "req-flight-modelica-partitioned-summary",
+        "Partitioned.mo",
+        "modelica_file_summary",
+        "omparser";
+        success = true,
+        summary_items = [
+            Dict(
+                "group" => "documentation",
+                "name" => "Partitioned",
+                "kind" => "package",
+                "content" => repeat("Modelica summary payload. ", 80),
+                "module" => "Partitioned",
+                "path" => "Partitioned",
+            ) for _ in 1:80
+        ],
+    )
+
+    summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
+    partitions = collect(Tables.partitions(summary_table))
+    summary_columns = Tables.columntable(summary_table)
+    roundtrip_table = WendaoCodeParser.WendaoArrow.Arrow.Table(
+        WendaoCodeParser.WendaoArrow.Arrow.tobuffer(summary_table),
+    )
+    roundtrip_columns = Tables.columntable(roundtrip_table)
+
+    @test length(partitions) == 1
+    @test length(summary_columns.item_group) == 80
+    @test count(==("documentation"), summary_columns.item_group) == 80
+    @test length(roundtrip_columns.item_group) == 80
+    @test count(==("documentation"), roundtrip_columns.item_group) == 80
+end
+
+@testset "Flight summary rows parse committed Modelica demo fixtures" begin
+    fixture_cases = (
+        (
+            request_id = "req-flight-modelica-fixture-package",
+            path = modelica_fixture_path("Modelica", "Blocks", "package.mo"),
+            min_items = 500,
+        ),
+        (
+            request_id = "req-flight-modelica-fixture-interfaces",
+            path = modelica_fixture_path("Modelica", "Blocks", "Interfaces.mo"),
+            min_items = 150,
+        ),
+        (
+            request_id = "req-flight-modelica-fixture-types",
+            path = modelica_fixture_path("Modelica", "Blocks", "Types.mo"),
+            min_items = 20,
+        ),
+    )
+
+    for fixture_case in fixture_cases
+        @test isfile(fixture_case.path)
+        response = parse_modelica_file_summary(
+            ParserRequest(
+                fixture_case.request_id,
+                fixture_case.path,
+                read(fixture_case.path, String),
+            ),
+        )
+        @test response.success
+        @test length(response.summary_items) > fixture_case.min_items
+
+        summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
+        summary_columns = Tables.columntable(summary_table)
+        partitions = collect(Tables.partitions(summary_table))
+        roundtrip_table = WendaoCodeParser.WendaoArrow.Arrow.Table(
+            WendaoCodeParser.WendaoArrow.Arrow.tobuffer(summary_table),
+        )
+        roundtrip_columns = Tables.columntable(roundtrip_table)
+
+        @test length(summary_columns.item_group) == length(response.summary_items)
+        @test length(partitions) == 1
+        @test length(roundtrip_columns.item_group) == length(response.summary_items)
+    end
+end
