@@ -62,6 +62,54 @@ jobs:
               "OpenModelica";
               spec=Pkg.RegistrySpec(url="https://github.com/JKRT/OpenModelicaRegistry.git"),
           )
+      - name: Bootstrap inherited WendaoArrow direct sources
+        shell: julia --project=. {0}
+        run: |
+          ENV["JULIA_PKG_PRECOMPILE_AUTO"] = "0"
+
+          using Downloads
+          using Pkg
+          using TOML
+
+          function raw_project_url(url::String, rev::String)
+              repo_url = replace(url, r"\.git$" => "")
+              raw_base = replace(repo_url, "https://github.com/" => "https://raw.githubusercontent.com/")
+              return string(raw_base, "/", rev, "/Project.toml")
+          end
+
+          function package_spec_from_source(name::String, source::Dict{String,Any})
+              if haskey(source, "subdir")
+                  return PackageSpec(
+                      name = name,
+                      url = source["url"],
+                      rev = source["rev"],
+                      subdir = source["subdir"],
+                  )
+              end
+              return PackageSpec(name = name, url = source["url"], rev = source["rev"])
+          end
+
+          project = TOML.parsefile(Base.active_project())
+          wendaoarrow_spec = project["sources"]["WendaoArrow"]
+          wendaoarrow_project = TOML.parsefile(
+              Downloads.download(
+                  raw_project_url(wendaoarrow_spec["url"], wendaoarrow_spec["rev"]),
+              ),
+          )
+
+          inherited_source_specs = PackageSpec[]
+          for dependency_name in sort!(collect(keys(get(wendaoarrow_project, "deps", Dict()))))
+              sources = get(wendaoarrow_project, "sources", Dict())
+              haskey(sources, dependency_name) || continue
+              push!(
+                  inherited_source_specs,
+                  package_spec_from_source(dependency_name, sources[dependency_name]),
+              )
+          end
+
+          isempty(inherited_source_specs) || Pkg.add(inherited_source_specs)
+
+          Pkg.resolve()
       - uses: julia-actions/julia-buildpkg@v1.6
         with:
           project: .

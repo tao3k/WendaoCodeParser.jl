@@ -5,8 +5,6 @@ authors = ["CyberXiuXian Workshop"]
 
 [deps]
 Absyn = "ce2f92e2-a952-11e9-0543-8b443f216f1d"
-Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
-ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 ImmutableList = "4a558cac-c1ed-11e9-20da-3584bcd8709a"
 JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -18,13 +16,11 @@ WendaoArrow = "561c8d8d-4bcf-4807-873b-a6b7d1e55843"
 
 [sources]
 Absyn = {rev = "master", url = "https://github.com/OpenModelica/Absyn.jl"}
-Arrow = {rev = "37df90f9fef98c488a8fa94e0989e953cfae4967", url = "https://github.com/JuliaCN/arrow-julia.git"}
-ArrowTypes = {rev = "37df90f9fef98c488a8fa94e0989e953cfae4967", subdir = "src/ArrowTypes", url = "https://github.com/JuliaCN/arrow-julia.git"}
 ImmutableList = {rev = "master", url = "https://github.com/OpenModelica/ImmutableList.jl"}
 JuliaSyntax = {rev = "main", url = "https://github.com/JuliaLang/JuliaSyntax.jl"}
 MetaModelica = {rev = "master", url = "https://github.com/OpenModelica/MetaModelica.jl"}
 OMParser = {rev = "d59051069e43fb2624aa13fe8935532ca15aecec", url = "https://github.com/tao3k/OMParser.jl"}
-WendaoArrow = {rev = "c1d1accf94bbbaeca53b4fd01ca35aef70f1e31a", url = "https://github.com/tao3k/WendaoArrow.jl.git"}
+WendaoArrow = {rev = "3ca26f93e7a0dd7342ce011114b72f74242e74de", url = "https://github.com/tao3k/WendaoArrow.jl.git"}
 
 [compat]
 Absyn = "1.3"
