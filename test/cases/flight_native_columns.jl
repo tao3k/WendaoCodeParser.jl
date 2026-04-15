@@ -238,6 +238,46 @@ end
     @test count(==("documentation"), roundtrip_columns.item_group) == 80
 end
 
+@testset "Flight summary rows partition dense parser-summary responses" begin
+    response = ParserResponse(
+        "req-flight-modelica-dense-summary",
+        "Dense.mo",
+        "modelica_file_summary",
+        "omparser";
+        success = true,
+        summary_items = [
+            Dict(
+                "group" => "documentation",
+                "name" => "Dense$(index)",
+                "kind" => "package",
+                "content" => "dense summary row $(index)",
+                "module" => "Dense",
+                "path" => "Dense.$(index)",
+            ) for index in 1:1025
+        ],
+    )
+
+    summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
+    partitions = collect(Tables.partitions(summary_table))
+    partition_row_counts = [
+        length(Tables.columntable(partition).item_group) for partition in partitions
+    ]
+    summary_columns = Tables.columntable(summary_table)
+    roundtrip_table = WendaoCodeParser.WendaoArrow.Arrow.Table(
+        WendaoCodeParser.WendaoArrow.Arrow.tobuffer(summary_table),
+    )
+    roundtrip_columns = Tables.columntable(roundtrip_table)
+
+    @test length(partitions) > 1
+    @test !isnothing(Tables.schema(first(partitions)))
+    @test all(<=(WendaoCodeParser.PARSER_RESPONSE_PARTITION_ROW_LIMIT), partition_row_counts)
+    @test sum(partition_row_counts) == 1025
+    @test length(summary_columns.item_group) == 1025
+    @test count(==("documentation"), summary_columns.item_group) == 1025
+    @test length(roundtrip_columns.item_group) == 1025
+    @test count(==("documentation"), roundtrip_columns.item_group) == 1025
+end
+
 @testset "Flight summary rows parse committed Modelica demo fixtures" begin
     fixture_cases = (
         (
