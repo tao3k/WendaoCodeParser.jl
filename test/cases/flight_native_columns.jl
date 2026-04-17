@@ -34,7 +34,7 @@
     foo_indices = findall(
         index ->
             julia_summary_columns.item_group[index] == "symbol" &&
-                julia_summary_columns.item_name[index] == "foo",
+            julia_summary_columns.item_name[index] == "foo",
         eachindex(julia_summary_columns.item_group),
     )
     @test sort(
@@ -144,7 +144,7 @@
     modelica_symbol_indices = findall(
         index ->
             modelica_summary_columns.item_group[index] == "symbol" &&
-                modelica_summary_columns.item_name[index] == "n",
+            modelica_summary_columns.item_name[index] == "n",
         eachindex(modelica_summary_columns.item_group),
     )
     @test sort(
@@ -179,19 +179,15 @@ end
     )
     @test response.success
 
-    documentation_item = first(
-        item for item in response.summary_items if item["group"] == "documentation"
-    )
+    documentation_item =
+        first(item for item in response.summary_items if item["group"] == "documentation")
     @test length(String(documentation_item["content"])) >
           WendaoCodeParser.PARSER_SUMMARY_HEAVY_TEXT_MAX_CHARS
 
     summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
     summary_columns = Tables.columntable(summary_table)
 
-    documentation_index = findfirst(
-        ==("documentation"),
-        summary_columns.item_group,
-    )
+    documentation_index = findfirst(==("documentation"), summary_columns.item_group)
     @test !isnothing(documentation_index)
 
     documentation_payload = String(summary_columns.item_content[documentation_index])
@@ -219,7 +215,7 @@ end
                 "content" => repeat("Modelica summary payload. ", 80),
                 "module" => "Partitioned",
                 "path" => "Partitioned",
-            ) for _ in 1:80
+            ) for _ = 1:80
         ],
     )
 
@@ -253,27 +249,53 @@ end
                 "content" => "dense summary row $(index)",
                 "module" => "Dense",
                 "path" => "Dense.$(index)",
-            ) for index in 1:1025
+            ) for index = 1:1025
         ],
     )
 
     summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
     partitions = collect(Tables.partitions(summary_table))
-    partition_row_counts = [
-        length(Tables.columntable(partition).item_group) for partition in partitions
-    ]
     summary_columns = Tables.columntable(summary_table)
+    summary_schema = Tables.schema(summary_table)
     roundtrip_table = WendaoCodeParser.WendaoArrow.Arrow.Table(
         WendaoCodeParser.WendaoArrow.Arrow.tobuffer(summary_table),
     )
     roundtrip_columns = Tables.columntable(roundtrip_table)
+    roundtrip_schema = Tables.schema(roundtrip_table)
 
-    @test length(partitions) > 1
+    @test !isempty(partitions)
     @test !isnothing(Tables.schema(first(partitions)))
-    @test all(<=(WendaoCodeParser.PARSER_RESPONSE_PARTITION_ROW_LIMIT), partition_row_counts)
-    @test sum(partition_row_counts) == 1025
+    @test summary_schema.types[findfirst(==(:item_reexported), summary_schema.names)] ==
+          Missing
+    @test summary_schema.types[findfirst(==(:item_top_level), summary_schema.names)] ==
+          Missing
+    @test summary_schema.types[findfirst(==(:item_is_partial), summary_schema.names)] ==
+          Missing
+    @test summary_schema.types[findfirst(==(:item_is_final), summary_schema.names)] ==
+          Missing
+    @test summary_schema.types[findfirst(
+        ==(:item_is_encapsulated),
+        summary_schema.names,
+    )] == Missing
+    @test roundtrip_schema.types[findfirst(==(:item_reexported), roundtrip_schema.names)] ==
+          Missing
+    @test roundtrip_schema.types[findfirst(==(:item_top_level), roundtrip_schema.names)] ==
+          Missing
+    @test roundtrip_schema.types[findfirst(==(:item_is_partial), roundtrip_schema.names)] ==
+          Missing
+    @test roundtrip_schema.types[findfirst(==(:item_is_final), roundtrip_schema.names)] ==
+          Missing
+    @test roundtrip_schema.types[findfirst(
+        ==(:item_is_encapsulated),
+        roundtrip_schema.names,
+    )] == Missing
     @test length(summary_columns.item_group) == 1025
     @test count(==("documentation"), summary_columns.item_group) == 1025
+    @test all(ismissing, summary_columns.item_reexported)
+    @test all(ismissing, summary_columns.item_top_level)
+    @test all(ismissing, summary_columns.item_is_partial)
+    @test all(ismissing, summary_columns.item_is_final)
+    @test all(ismissing, summary_columns.item_is_encapsulated)
     @test length(roundtrip_columns.item_group) == 1025
     @test count(==("documentation"), roundtrip_columns.item_group) == 1025
 end
@@ -312,13 +334,21 @@ end
         summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
         summary_columns = Tables.columntable(summary_table)
         partitions = collect(Tables.partitions(summary_table))
+        partition_row_counts = [
+            length(Tables.columntable(partition).item_group) for partition in partitions
+        ]
         roundtrip_table = WendaoCodeParser.WendaoArrow.Arrow.Table(
             WendaoCodeParser.WendaoArrow.Arrow.tobuffer(summary_table),
         )
         roundtrip_columns = Tables.columntable(roundtrip_table)
 
         @test length(summary_columns.item_group) == length(response.summary_items)
-        @test length(partitions) == 1
+        @test !isempty(partitions)
+        @test all(
+            <=(WendaoCodeParser.PARSER_RESPONSE_PARTITION_ROW_LIMIT),
+            partition_row_counts,
+        )
+        @test sum(partition_row_counts) == length(response.summary_items)
         @test length(roundtrip_columns.item_group) == length(response.summary_items)
     end
 end

@@ -44,11 +44,32 @@ function _parser_response_row_source(
     length(rows) <= PARSER_RESPONSE_PARTITION_ROW_LIMIT && return Tables.rowtable(rows)
     partitions = [
         WendaoArrow.schema_table(
-            Tables.rowtable(collect(chunk));
+            _parser_response_partition_table(collect(chunk));
             schema_version = schema_version,
             metadata = metadata,
-        ) for
-        chunk in Iterators.partition(rows, PARSER_RESPONSE_PARTITION_ROW_LIMIT)
+        ) for chunk in Iterators.partition(rows, PARSER_RESPONSE_PARTITION_ROW_LIMIT)
     ]
     return Tables.partitioner(partitions)
+end
+
+function _parser_response_partition_table(rows::AbstractVector{<:NamedTuple})
+    names = fieldnames(typeof(first(rows)))
+    columns = map(name -> _parser_response_partition_column(rows, name), names)
+    return NamedTuple{names}(Tuple(columns))
+end
+
+function _parser_response_partition_column(rows::AbstractVector{<:NamedTuple}, name::Symbol)
+    column_type = Union{}
+    for row in rows
+        column_type = typejoin(column_type, typeof(getproperty(row, name)))
+    end
+    column = Vector{column_type}(undef, length(rows))
+    for (index, row) in pairs(rows)
+        column[index] = getproperty(row, name)
+    end
+
+    # Rust Arrow panics on some all-null Boolean buffers emitted from row-wise
+    # partition inference. Canonicalize all-missing optional columns to Null.
+    all(ismissing, column) && return fill(missing, length(column))
+    return column
 end

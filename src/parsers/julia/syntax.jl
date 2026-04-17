@@ -3,7 +3,7 @@ function _julia_kind_name(node)
 end
 
 function _julia_child_nodes(node)
-    return JuliaSyntax.haschildren(node) ? JuliaSyntax.children(node) : ()
+    return JuliaSyntax.is_leaf(node) ? () : JuliaSyntax.children(node)
 end
 
 function _julia_first_child_of_kind(node, expected_kind::AbstractString)
@@ -41,7 +41,8 @@ end
 
 function _julia_function_signature(node, source::String)
     signature = _julia_node_signature(node, source)
-    startswith(signature, "function ") && return strip(signature[length("function ")+1:end])
+    startswith(signature, "function ") &&
+        return strip(signature[(length("function ")+1):end])
     return signature
 end
 
