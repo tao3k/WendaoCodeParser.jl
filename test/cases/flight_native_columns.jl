@@ -300,6 +300,67 @@ end
     @test count(==("documentation"), roundtrip_columns.item_group) == 1025
 end
 
+@testset "Flight summary rows preserve nullable column schema across partitions" begin
+    response = ParserResponse(
+        "req-flight-modelica-mixed-nullable-summary",
+        "MixedNullable.mo",
+        "modelica_file_summary",
+        "omparser";
+        success = true,
+        summary_items = [
+            Dict(
+                "group" => "documentation",
+                "name" => "Mixed$(index)",
+                "kind" => "package",
+                "content" => "mixed nullable row $(index)",
+                "module" => "MixedNullable",
+                "path" => "MixedNullable.$(index)",
+            ) for index = 1:512
+        ],
+    )
+    append!(
+        response.summary_items,
+        [
+            Dict(
+                "group" => "symbol",
+                "name" => "Mixed$(index)",
+                "kind" => "constant",
+                "content" => "mixed nullable row $(index)",
+                "module" => "MixedNullable",
+                "path" => "MixedNullable.$(index)",
+                "reexported" => isodd(index),
+            ) for index = 513:1025
+        ],
+    )
+
+    summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
+    partitions = collect(Tables.partitions(summary_table))
+    summary_columns = Tables.columntable(summary_table)
+    summary_schema = Tables.schema(summary_table)
+    partition_schema_types = map(partitions) do partition
+        partition_schema = Tables.schema(partition)
+        partition_schema.types[findfirst(==(:item_reexported), partition_schema.names)]
+    end
+    roundtrip_table = WendaoCodeParser.WendaoArrow.Arrow.Table(
+        WendaoCodeParser.WendaoArrow.Arrow.tobuffer(summary_table),
+    )
+    roundtrip_columns = Tables.columntable(roundtrip_table)
+    roundtrip_schema = Tables.schema(roundtrip_table)
+
+    @test length(partitions) > 1
+    @test all(==(first(partition_schema_types)), partition_schema_types)
+    @test first(partition_schema_types) ==
+          summary_schema.types[findfirst(==(:item_reexported), summary_schema.names)]
+    @test roundtrip_schema.types[findfirst(==(:item_reexported), roundtrip_schema.names)] ==
+          first(partition_schema_types)
+    @test count(ismissing, summary_columns.item_reexported) == 512
+    @test count(==(true), skipmissing(summary_columns.item_reexported)) > 0
+    @test count(==(false), skipmissing(summary_columns.item_reexported)) > 0
+    @test count(ismissing, roundtrip_columns.item_reexported) == 512
+    @test count(==(true), skipmissing(roundtrip_columns.item_reexported)) > 0
+    @test count(==(false), skipmissing(roundtrip_columns.item_reexported)) > 0
+end
+
 @testset "Flight summary rows parse committed Modelica demo fixtures" begin
     fixture_cases = (
         (

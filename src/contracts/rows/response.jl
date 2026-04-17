@@ -42,9 +42,10 @@ function _parser_response_row_source(
     metadata,
 )
     length(rows) <= PARSER_RESPONSE_PARTITION_ROW_LIMIT && return Tables.rowtable(rows)
+    partition_schema = _parser_response_partition_schema(rows)
     partitions = [
         WendaoArrow.schema_table(
-            _parser_response_partition_table(collect(chunk));
+            _parser_response_partition_table(collect(chunk), partition_schema);
             schema_version = schema_version,
             metadata = metadata,
         ) for chunk in Iterators.partition(rows, PARSER_RESPONSE_PARTITION_ROW_LIMIT)
@@ -52,24 +53,46 @@ function _parser_response_row_source(
     return Tables.partitioner(partitions)
 end
 
-function _parser_response_partition_table(rows::AbstractVector{<:NamedTuple})
+function _parser_response_partition_schema(rows::AbstractVector{<:NamedTuple})
     names = fieldnames(typeof(first(rows)))
-    columns = map(name -> _parser_response_partition_column(rows, name), names)
+    types = map(name -> _parser_response_partition_column_type(rows, name), names)
+    return NamedTuple{names}(Tuple(types))
+end
+
+function _parser_response_partition_table(
+    rows::AbstractVector{<:NamedTuple},
+    partition_schema::NamedTuple,
+)
+    names = keys(partition_schema)
+    columns = map(
+        name ->
+            _parser_response_partition_column(rows, name, getproperty(partition_schema, name)),
+        names,
+    )
     return NamedTuple{names}(Tuple(columns))
 end
 
-function _parser_response_partition_column(rows::AbstractVector{<:NamedTuple}, name::Symbol)
+function _parser_response_partition_column_type(
+    rows::AbstractVector{<:NamedTuple},
+    name::Symbol,
+)
     column_type = Union{}
     for row in rows
-        column_type = typejoin(column_type, typeof(getproperty(row, name)))
+        column_type = Base.promote_typejoin(column_type, typeof(getproperty(row, name)))
     end
+    return column_type
+end
+
+function _parser_response_partition_column(
+    rows::AbstractVector{<:NamedTuple},
+    name::Symbol,
+    column_type,
+)
     column = Vector{column_type}(undef, length(rows))
     for (index, row) in pairs(rows)
         column[index] = getproperty(row, name)
     end
 
-    # Rust Arrow panics on some all-null Boolean buffers emitted from row-wise
-    # partition inference. Canonicalize all-missing optional columns to Null.
-    all(ismissing, column) && return fill(missing, length(column))
+    column_type === Missing && return fill(missing, length(column))
     return column
 end
