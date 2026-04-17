@@ -334,9 +334,8 @@ end
         summary_table = parser_response_arrow_table(MODELICA_FILE_SUMMARY_ROUTE, [response])
         summary_columns = Tables.columntable(summary_table)
         partitions = collect(Tables.partitions(summary_table))
-        partition_row_counts = [
-            length(Tables.columntable(partition).item_group) for partition in partitions
-        ]
+        partition_row_counts =
+            [length(Tables.columntable(partition).item_group) for partition in partitions]
         roundtrip_table = WendaoCodeParser.WendaoArrow.Arrow.Table(
             WendaoCodeParser.WendaoArrow.Arrow.tobuffer(summary_table),
         )

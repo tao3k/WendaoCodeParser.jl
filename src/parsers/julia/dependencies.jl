@@ -185,15 +185,15 @@ function _push_import!(
     existing_index = findfirst(
         entry ->
             String(entry["module"]) == import_name &&
-                String(get(entry, "dependency_kind", "import")) == dependency_kind &&
-                String(get(entry, "dependency_form", "path")) == dependency_form &&
-                String(get(entry, "dependency_parent", "")) ==
-                String(something(dependency_parent, "")) &&
-                String(get(entry, "dependency_member", "")) ==
-                String(something(dependency_member, "")) &&
-                String(get(entry, "dependency_alias", "")) ==
-                String(something(dependency_alias, "")) &&
-                String(get(entry, "owner_path", get(entry, "module_path", ""))) == scope_key,
+            String(get(entry, "dependency_kind", "import")) == dependency_kind &&
+            String(get(entry, "dependency_form", "path")) == dependency_form &&
+            String(get(entry, "dependency_parent", "")) ==
+            String(something(dependency_parent, "")) &&
+            String(get(entry, "dependency_member", "")) ==
+            String(something(dependency_member, "")) &&
+            String(get(entry, "dependency_alias", "")) ==
+            String(something(dependency_alias, "")) &&
+            String(get(entry, "owner_path", get(entry, "module_path", ""))) == scope_key,
         state.imports,
     )
     if !isnothing(existing_index)
