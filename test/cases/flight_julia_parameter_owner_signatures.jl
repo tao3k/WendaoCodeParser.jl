@@ -27,7 +27,7 @@
     x_rows = findall(
         index ->
             summary_columns.item_group[index] == "parameter" &&
-                summary_columns.item_name[index] == "x",
+            summary_columns.item_name[index] == "x",
         eachindex(summary_columns.item_group),
     )
     @test length(x_rows) == 2
