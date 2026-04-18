@@ -19,14 +19,14 @@ WendaoArrow = "561c8d8d-4bcf-4807-873b-a6b7d1e55843"
 
 [sources]
 Absyn = {rev = "master", url = "https://github.com/OpenModelica/Absyn.jl"}
-Arrow = {rev = "91944a6d968bbe5acd2f864346269ef0c350bd2a", url = "https://github.com/JuliaCN/arrow-julia.git"}
-ArrowTypes = {rev = "91944a6d968bbe5acd2f864346269ef0c350bd2a", subdir = "src/ArrowTypes", url = "https://github.com/JuliaCN/arrow-julia.git"}
+Arrow = {rev = "2ec9e65ef648c5da4060f0ef8b8e78e7ed00226d", url = "https://github.com/JuliaCN/arrow-julia.git"}
+ArrowTypes = {rev = "2ec9e65ef648c5da4060f0ef8b8e78e7ed00226d", subdir = "src/ArrowTypes", url = "https://github.com/JuliaCN/arrow-julia.git"}
 ImmutableList = {rev = "master", url = "https://github.com/OpenModelica/ImmutableList.jl"}
 JuliaSyntax = {rev = "main", url = "https://github.com/JuliaLang/JuliaSyntax.jl"}
 MetaModelica = {rev = "master", url = "https://github.com/OpenModelica/MetaModelica.jl"}
 OMParser = {rev = "d59051069e43fb2624aa13fe8935532ca15aecec", url = "https://github.com/tao3k/OMParser.jl"}
 PureHTTP2 = {rev = "03d8853e9556a4355d7b650853cda62b1906d88e", url = "https://github.com/s-celles/PureHTTP2.jl"}
-WendaoArrow = {rev = "3325a646785e022a3286d08f28b19dafb4e7c8dd", url = "https://github.com/tao3k/WendaoArrow.jl.git"}
+WendaoArrow = {rev = "ab02bc080e90a0683978051cc4165b7173c2992b", url = "https://github.com/tao3k/WendaoArrow.jl.git"}
 
 [compat]
 Absyn = "1.3"
