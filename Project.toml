@@ -26,7 +26,7 @@ JuliaSyntax = {rev = "main", url = "https://github.com/JuliaLang/JuliaSyntax.jl"
 MetaModelica = {rev = "master", url = "https://github.com/OpenModelica/MetaModelica.jl"}
 OMParser = {rev = "d59051069e43fb2624aa13fe8935532ca15aecec", url = "https://github.com/tao3k/OMParser.jl"}
 PureHTTP2 = {rev = "03d8853e9556a4355d7b650853cda62b1906d88e", url = "https://github.com/s-celles/PureHTTP2.jl"}
-WendaoArrow = {rev = "308c9fb1864af132eb1942b6cca0c5c1403e8ca8", url = "https://github.com/tao3k/WendaoArrow.jl.git"}
+WendaoArrow = {rev = "ab02bc080e90a0683978051cc4165b7173c2992b", url = "https://github.com/tao3k/WendaoArrow.jl.git"}
 
 [compat]
 Absyn = "1.3"
