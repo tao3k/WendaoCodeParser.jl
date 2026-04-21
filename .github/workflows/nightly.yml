@@ -65,11 +65,14 @@ jobs:
       - name: Resolve and build package
         env:
           JULIA_PKG_PRECOMPILE_AUTO: "0"
+          WENDAO_CODE_PARSER_BOOTSTRAP_ENV: ${{ runner.temp }}/wendaocodeparser-env
         run: |
-          julia --project=. -e 'using Pkg; Pkg.resolve(); Pkg.instantiate(); Pkg.build()'
+          julia ./scripts/prepare_wendao_code_parser_env.jl
       - name: Run package tests
         env:
           JULIA_NUM_THREADS: ${{ matrix.nthreads }}
           JULIA_PKG_PRECOMPILE_AUTO: "0"
+          WENDAO_CODE_PARSER_BOOTSTRAP_ENV: ${{ runner.temp }}/wendaocodeparser-env
         run: |
-          julia --project=. -e 'using Pkg; Pkg.test("WendaoCodeParser"; coverage=false)'
+          chmod +x ./scripts/test_wendao_code_parser.sh
+          ./scripts/test_wendao_code_parser.sh
