@@ -324,7 +324,6 @@ GitHub Actions note:
 1. package-local CI now runs `Pkg.build()` plus `Pkg.test()` on
    `ubuntu-latest` and `macos-latest` for Julia `1.12` and `pre`
 2. a separate nightly workflow runs weekly on `ubuntu-latest`
-3. both workflows ensure `General`, then develop the package in a temporary
-   Julia project before `Pkg.instantiate()`, `Pkg.build()`, and package tests,
-   so remote runners resolve from the package-owned source contract instead of
-   workflow-local dependency shims
+3. both workflows use `julia-actions/julia-buildpkg` and
+   `julia-actions/julia-runtest`, so remote runners resolve from the
+   package-owned source contract instead of workflow-local dependency shims

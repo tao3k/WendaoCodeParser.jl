@@ -50,21 +50,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install autoconf automake libtool pkg-config
-      - name: Ensure General registry
-        shell: julia --project=. {0}
-        run: |
-          using Pkg
-          registries = Pkg.Registry.reachable_registries()
-          any(registry -> registry.name == "General", registries) || Pkg.Registry.add("General")
-      - name: Instantiate package
+      - uses: julia-actions/julia-buildpkg@v1
         env:
           JULIA_PKG_PRECOMPILE_AUTO: "0"
-        run: |
-          julia --project="$(mktemp -d)" -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate(); Pkg.build("WendaoCodeParser")'
-      - name: Run package tests
+      - uses: julia-actions/julia-runtest@v1
         env:
           JULIA_NUM_THREADS: ${{ matrix.nthreads }}
           JULIA_PKG_PRECOMPILE_AUTO: "0"
-        run: |
-          chmod +x ./scripts/test_wendao_code_parser.sh
-          ./scripts/test_wendao_code_parser.sh
