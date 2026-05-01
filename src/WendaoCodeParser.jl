@@ -48,8 +48,15 @@ export parse_julia_root_summary
 export parse_modelica_file_summary
 export parser_route_descriptor
 export parser_route_request_headers
+export parser_service_flight_server_kwargs
+export parser_service_interface_args
+export parser_service_listener_config
+export parser_service_route_names
+export ParserServiceListenerConfig
 export supported_parser_route_names
+export build_parser_live_flight_service
 export search_julia_ast
 export search_modelica_ast
+export warm_parser_live_flight_service
 
 end

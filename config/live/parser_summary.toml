@@ -1,0 +1,10 @@
+code_parser_route_names = [
+  "julia_file_summary",
+  "julia_root_summary",
+  "modelica_file_summary",
+  "modelica_ast_query",
+]
+
+[interface]
+host = "127.0.0.1"
+port = 41081

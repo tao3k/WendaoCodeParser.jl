@@ -22,9 +22,29 @@ Package boundary:
 The initial slice keeps the Rust client cutover out of scope and proves the
 provider contract first.
 
-`WendaoSearch.jl` can also mount these parser routes into its existing live gRPC
-service with `--code-parser-route-names`, so the same Arrow Flight process can
-serve both graph-search routes and AST-query routes during local loopback tests.
+Service runtime:
+
+1. `scripts/run_service.jl` starts the parser-summary and AST-query Flight
+   service directly from this package
+2. `config/live/parser_summary.toml` is the package-local live-service
+   descriptor for the default Julia and Modelica parser routes
+3. `contracts/wendaocodeparser_parser_summary.toml` is the package-local
+   route and transport contract consumed by Rust integration tests
+
+Start the default service:
+
+```bash
+julia --project=. scripts/run_service.jl --config config/live/parser_summary.toml
+```
+
+Override listener fields without changing the package-owned route contract:
+
+```bash
+julia --project=. scripts/run_service.jl \
+  --config config/live/parser_summary.toml \
+  --host 127.0.0.1 \
+  --port 41081
+```
 
 Package docs now also live under `docs/`:
 
@@ -57,8 +77,7 @@ Native bridge note:
    `ImmutableList`, and `MetaModelica` from `Main` during parser
    initialization
 2. `WendaoCodeParser.jl` therefore aliases those already-loaded modules into
-   `Main` before the first Modelica parse, especially for mounted live-child
-   startup under `WendaoSearch.jl`
+   `Main` before the first Modelica parse
 3. This runtime requirement is separate from the upstream `OMParser.jl`
    build/bootstrap lane: the upstream PR still matters for `Pkg.build(...)`,
    release assets, and CI coverage, but it does not by itself close the live
@@ -278,12 +297,10 @@ Contract note:
    distinct AST nodes instead of being collapsed globally
 28. package tests are now split under `test/support/` and `test/cases/`, so
    `test/runtests.jl` stays as a small runner instead of a monolithic file
-29. parser-specific Flight round-trip coverage is now isolated in
-   `test/cases/flight_native_columns.jl`, and mounted shared-service parser
-   regressions are isolated under `WendaoSearch.jl/test/integration/`,
-   including `live_code_parser.jl`, `live_dependency_semantics.jl`,
-   `live_relative_dependencies.jl`, `live_modelica_import_forms.jl`, and
-   `live_julia_type_headers.jl`
+29. parser-specific Flight round-trip coverage is isolated in
+   `test/cases/flight_native_columns.jl`, while parser-service route parsing,
+   listener config, and multiplexed live-service behavior are covered in
+   `test/cases/flight_services.jl`
 30. AST match rows now also promote parser-owned stable columns such as
    `match_target_name`, `match_root_module_name`, `match_top_level`,
    `match_reexported`, `match_visibility`, `match_type_name`,
