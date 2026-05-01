@@ -20,8 +20,8 @@ WendaoArrow = "561c8d8d-4bcf-4807-873b-a6b7d1e55843"
 
 [sources]
 Absyn = {rev = "master", url = "https://github.com/OpenModelica/Absyn.jl"}
-Arrow = {rev = "91944a6d968bbe5acd2f864346269ef0c350bd2a", url = "https://github.com/JuliaCN/arrow-julia.git"}
-ArrowTypes = {rev = "91944a6d968bbe5acd2f864346269ef0c350bd2a", subdir = "src/ArrowTypes", url = "https://github.com/JuliaCN/arrow-julia.git"}
+Arrow = {rev = "82562ef144a5d8b7d488710cea609fb7488d4efe", url = "https://github.com/JuliaCN/arrow-julia.git"}
+ArrowTypes = {rev = "82562ef144a5d8b7d488710cea609fb7488d4efe", subdir = "src/ArrowTypes", url = "https://github.com/JuliaCN/arrow-julia.git"}
 ImmutableList = {rev = "master", url = "https://github.com/OpenModelica/ImmutableList.jl"}
 JuliaSyntax = {rev = "main", url = "https://github.com/JuliaLang/JuliaSyntax.jl"}
 MetaModelica = {rev = "master", url = "https://github.com/OpenModelica/MetaModelica.jl"}
