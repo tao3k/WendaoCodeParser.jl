@@ -7,6 +7,13 @@ const PROJECT_TOML = joinpath(WENDAO_ROOT, "Project.toml")
 const BOOTSTRAP_ENV = "WENDAO_CODE_PARSER_BOOTSTRAP_ENV"
 const LOCAL_ARROW_ENV = "WENDAO_CODE_PARSER_LOCAL_ARROW_PATH"
 const LOCAL_WENDAOARROW_ENV = "WENDAO_CODE_PARSER_LOCAL_WENDAO_ARROW_PATH"
+const WENDAOARROW_REQUIRED_SOURCES = ("gRPCServer",)
+const WENDAOARROW_SOURCE_FALLBACKS = Dict{String,Dict{String,Any}}(
+    "gRPCServer" => Dict{String,Any}(
+        "url" => "https://github.com/tao3k/gRPCServer.jl",
+        "rev" => "261cd70ac0b76c060cef0507245c400da0b5def9",
+    ),
+)
 
 function valid_arrow_checkout(path::AbstractString)
     return isfile(joinpath(path, "Project.toml")) &&
@@ -57,13 +64,48 @@ function maybe_local_checkout(candidates::Vector{String}, validator::Function)
     return nothing
 end
 
-function remote_source_spec(name::String, entry::Dict{String,Any})
+function remote_source_spec(name::String, entry::Dict{String,Any}; root::AbstractString = WENDAO_ROOT)
     kwargs = Dict{Symbol,Any}(:name => name)
     haskey(entry, "url") && (kwargs[:url] = entry["url"])
     haskey(entry, "rev") && (kwargs[:rev] = entry["rev"])
     haskey(entry, "subdir") && (kwargs[:subdir] = entry["subdir"])
-    haskey(entry, "path") && (kwargs[:path] = abspath(joinpath(WENDAO_ROOT, entry["path"])))
+    haskey(entry, "path") && (kwargs[:path] = abspath(joinpath(root, entry["path"])))
     return Pkg.PackageSpec(; kwargs...)
+end
+
+function push_remote_source_spec!(
+    specs::Vector{Pkg.PackageSpec},
+    seen_sources::Set{String},
+    name::String,
+    entry,
+    ;
+    root::AbstractString = WENDAO_ROOT,
+)
+    entry isa Dict{String,Any} || return
+    name in seen_sources && return
+    push!(specs, remote_source_spec(name, entry; root = root))
+    push!(seen_sources, name)
+    return
+end
+
+function wendaoarrow_source_entry(
+    name::String,
+    sources::Dict{String,Any},
+    wendaoarrow_checkout::Union{Nothing,String},
+)
+    entry = get(sources, name, nothing)
+    entry isa Dict{String,Any} && return (; entry, root = WENDAO_ROOT)
+
+    if !isnothing(wendaoarrow_checkout)
+        wendaoarrow_project = TOML.parsefile(joinpath(wendaoarrow_checkout, "Project.toml"))
+        wendaoarrow_sources = get(wendaoarrow_project, "sources", Dict{String,Any}())
+        entry = get(wendaoarrow_sources, name, nothing)
+        entry isa Dict{String,Any} && return (; entry, root = wendaoarrow_checkout)
+    end
+
+    entry = get(WENDAOARROW_SOURCE_FALLBACKS, name, nothing)
+    entry isa Dict{String,Any} && return (; entry, root = WENDAO_ROOT)
+    return nothing
 end
 
 project = TOML.parsefile(PROJECT_TOML)
@@ -78,25 +120,38 @@ wendaoarrow_checkout =
 
 add_specs = Pkg.PackageSpec[]
 develop_specs = Pkg.PackageSpec[]
+seen_sources = Set{String}()
 
 if isnothing(arrow_checkout)
-    push!(add_specs, remote_source_spec("Arrow", sources["Arrow"]))
-    push!(add_specs, remote_source_spec("ArrowTypes", sources["ArrowTypes"]))
+    push_remote_source_spec!(add_specs, seen_sources, "Arrow", sources["Arrow"])
+    push_remote_source_spec!(add_specs, seen_sources, "ArrowTypes", sources["ArrowTypes"])
 else
     push!(develop_specs, Pkg.PackageSpec(path = arrow_checkout))
     push!(develop_specs, Pkg.PackageSpec(path = joinpath(arrow_checkout, "src", "ArrowTypes")))
 end
 
 if isnothing(wendaoarrow_checkout)
-    push!(add_specs, remote_source_spec("WendaoArrow", sources["WendaoArrow"]))
+    push_remote_source_spec!(add_specs, seen_sources, "WendaoArrow", sources["WendaoArrow"])
 else
     push!(develop_specs, Pkg.PackageSpec(path = wendaoarrow_checkout))
+end
+
+for name in WENDAOARROW_REQUIRED_SOURCES
+    source = wendaoarrow_source_entry(name, sources, wendaoarrow_checkout)
+    isnothing(source) && continue
+    push_remote_source_spec!(
+        add_specs,
+        seen_sources,
+        name,
+        source.entry;
+        root = source.root,
+    )
 end
 
 for (name, entry) in sources
     entry isa Dict{String,Any} || continue
     name in ("Arrow", "ArrowTypes", "WendaoArrow") && continue
-    push!(add_specs, remote_source_spec(name, entry))
+    push_remote_source_spec!(add_specs, seen_sources, name, entry)
 end
 
 isempty(add_specs) || Pkg.add(add_specs; preserve = Pkg.PRESERVE_DIRECT)
