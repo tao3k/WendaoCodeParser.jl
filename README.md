@@ -66,8 +66,9 @@ Current backend status:
 5. The current workspace lock pins `WendaoArrow.jl` to
    `https://github.com/tao3k/WendaoArrow.jl.git` at
    `e992839d84dc92ffc4972e10d160ee4ce53ce126`
-6. The package also pins the inherited `Arrow.jl`, `ArrowTypes`, and
-   `PureHTTP2.jl` transport sources directly in `Project.toml`, so clean
+6. The package also pins the inherited `Arrow.jl`, `ArrowTypes`,
+   `gRPCServer.jl`, and `PureHTTP2.jl` transport sources directly in
+   `Project.toml`, so clean
    package resolution and GitHub Actions do not rely on a workflow-local
    inherited-source shim
 
@@ -323,6 +324,7 @@ GitHub Actions note:
 1. package-local CI now runs `Pkg.build()` plus `Pkg.test()` on
    `ubuntu-latest` and `macos-latest` for Julia `1.12` and `pre`
 2. a separate nightly workflow runs weekly on `ubuntu-latest`
-3. both workflows prepare `General` plus `OpenModelicaRegistry` before running
-   `Pkg.resolve()`, `Pkg.instantiate()`, `Pkg.build()`, and package tests, so
-   remote runners resolve the same source-locked transport stack as local runs
+3. both workflows ensure `General`, then develop the package in a temporary
+   Julia project before `Pkg.instantiate()`, `Pkg.build()`, and package tests,
+   so remote runners resolve from the package-owned source contract instead of
+   workflow-local dependency shims

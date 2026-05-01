@@ -6,13 +6,24 @@ if "@stdlib" ∉ Base.LOAD_PATH
     push!(Base.LOAD_PATH, "@stdlib")
 end
 
-using Logging
-using TOML
-using WendaoArrow
-using WendaoCodeParser
+using Pkg
 
 const SCRIPT_ROOT = @__DIR__
 const WENDAOCODEPARSER_ROOT = normpath(joinpath(SCRIPT_ROOT, ".."))
+
+function activate_code_parser_project()
+    Pkg.activate(; temp = true, io = devnull)
+    Pkg.develop(Pkg.PackageSpec(path = WENDAOCODEPARSER_ROOT); io = devnull)
+    Pkg.instantiate(; io = devnull)
+    return WENDAOCODEPARSER_ROOT
+end
+
+activate_code_parser_project()
+
+using Logging
+using TOML
+using WendaoCodeParser
+
 const DEFAULT_CONFIG_PATH =
     joinpath(WENDAOCODEPARSER_ROOT, "config", "live", "parser_summary.toml")
 
@@ -122,7 +133,7 @@ function main(args::Vector{String})
     isempty(route_names) &&
         error("WendaoCodeParser service requires at least one parser route")
     listener = WendaoCodeParser.parser_service_listener_config(entry_args)
-    config = WendaoArrow.config_from_args(
+    config = WendaoCodeParser.WendaoArrow.config_from_args(
         WendaoCodeParser.parser_service_interface_args(entry_args),
     )
 
@@ -138,13 +149,13 @@ function main(args::Vector{String})
     )
     live_service = WendaoCodeParser.build_parser_live_flight_service(route_names)
     WendaoCodeParser.warm_parser_live_flight_service(live_service, route_names)
-    server = WendaoArrow.flight_server(
+    server = WendaoCodeParser.WendaoArrow.flight_server(
         live_service;
         host = String(config.host),
         port = Int(config.port),
         WendaoCodeParser.parser_service_flight_server_kwargs(listener)...,
     )
-    WendaoArrow._wait_for_flight_server(server; block = true)
+    WendaoCodeParser.WendaoArrow._wait_for_flight_server(server; block = true)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

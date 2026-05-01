@@ -7,6 +7,7 @@ authors = ["CyberXiuXian Workshop"]
 Absyn = "ce2f92e2-a952-11e9-0543-8b443f216f1d"
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
 ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
+gRPCServer = "608c6337-0d7d-447f-bb69-0f5674ee3959"
 ImmutableList = "4a558cac-c1ed-11e9-20da-3584bcd8709a"
 JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -22,6 +23,7 @@ WendaoArrow = "561c8d8d-4bcf-4807-873b-a6b7d1e55843"
 Absyn = {rev = "master", url = "https://github.com/OpenModelica/Absyn.jl"}
 Arrow = {rev = "82562ef144a5d8b7d488710cea609fb7488d4efe", url = "https://github.com/JuliaCN/arrow-julia.git"}
 ArrowTypes = {rev = "82562ef144a5d8b7d488710cea609fb7488d4efe", subdir = "src/ArrowTypes", url = "https://github.com/JuliaCN/arrow-julia.git"}
+gRPCServer = {rev = "261cd70ac0b76c060cef0507245c400da0b5def9", url = "https://github.com/tao3k/gRPCServer.jl"}
 ImmutableList = {rev = "master", url = "https://github.com/OpenModelica/ImmutableList.jl"}
 JuliaSyntax = {rev = "main", url = "https://github.com/JuliaLang/JuliaSyntax.jl"}
 MetaModelica = {rev = "master", url = "https://github.com/OpenModelica/MetaModelica.jl"}
@@ -33,6 +35,7 @@ WendaoArrow = {rev = "e992839d84dc92ffc4972e10d160ee4ce53ce126", url = "https://
 Absyn = "1.3"
 Arrow = "2.8.1"
 ArrowTypes = "2.3.0"
+gRPCServer = "0.1"
 ImmutableList = "0.1, 0.3"
 JuliaSyntax = "2"
 MetaModelica = "0.0.5, 0.1, 0.2"
