@@ -7,6 +7,7 @@ authors = ["CyberXiuXian Workshop"]
 Absyn = "ce2f92e2-a952-11e9-0543-8b443f216f1d"
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
 ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
+gRPCServer = "608c6337-0d7d-447f-bb69-0f5674ee3959"
 ImmutableList = "4a558cac-c1ed-11e9-20da-3584bcd8709a"
 JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -15,6 +16,7 @@ MetaModelica = "9d7f2a79-07b5-5542-8b19-c0100dda6b06"
 OMParser = "11f87224-cae7-4e99-a924-e50d12f62c59"
 PureHTTP2 = "7d1e1b98-28e7-4969-8df9-5a308937986a"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 WendaoArrow = "561c8d8d-4bcf-4807-873b-a6b7d1e55843"
 
 [sources]
@@ -33,17 +35,18 @@ WendaoArrow = {rev = "e992839d84dc92ffc4972e10d160ee4ce53ce126", url = "https://
 Absyn = "1.3"
 Arrow = "2.8.1"
 ArrowTypes = "2.3.0"
+gRPCServer = "0.1"
 ImmutableList = "0.1, 0.3"
 JuliaSyntax = "2"
-MetaModelica = "0.0.5, 0.1"
+MetaModelica = "0.0.5, 0.1, 0.2"
 OMParser = "0.0.3"
 PureHTTP2 = "0.5.0"
 Tables = "1"
+TOML = "1"
 WendaoArrow = "0.1"
 julia = "1.12"
 
 [extras]
-gRPCServer = "608c6337-0d7d-447f-bb69-0f5674ee3959"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]

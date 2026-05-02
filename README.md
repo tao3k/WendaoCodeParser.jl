@@ -22,9 +22,29 @@ Package boundary:
 The initial slice keeps the Rust client cutover out of scope and proves the
 provider contract first.
 
-`WendaoSearch.jl` can also mount these parser routes into its existing live gRPC
-service with `--code-parser-route-names`, so the same Arrow Flight process can
-serve both graph-search routes and AST-query routes during local loopback tests.
+Service runtime:
+
+1. `scripts/run_service.jl` starts the parser-summary and AST-query Flight
+   service directly from this package
+2. `config/live/parser_summary.toml` is the package-local live-service
+   descriptor for the default Julia and Modelica parser routes
+3. `contracts/wendaocodeparser_parser_summary.toml` is the package-local
+   route and transport contract consumed by Rust integration tests
+
+Start the default service:
+
+```bash
+julia --project=. scripts/run_service.jl --config config/live/parser_summary.toml
+```
+
+Override listener fields without changing the package-owned route contract:
+
+```bash
+julia --project=. scripts/run_service.jl \
+  --config config/live/parser_summary.toml \
+  --host 127.0.0.1 \
+  --port 41081
+```
 
 Package docs now also live under `docs/`:
 
@@ -41,15 +61,16 @@ Current backend status:
    `lib/parser -> autoconf -> ./configure -> make`
 4. The current workspace lock pins `OMParser.jl` to
    `https://github.com/tao3k/OMParser.jl` at
-   `cebc0696407385e52496608fcc13e95a556da3b5` until the bootstrap fixes are
-   consumed upstream
+   `d59051069e43fb2624aa13fe8935532ca15aecec` until the upstream source-build
+   fixes are consumed
 5. The current workspace lock pins `WendaoArrow.jl` to
    `https://github.com/tao3k/WendaoArrow.jl.git` at
-   `3325a646785e022a3286d08f28b19dafb4e7c8dd`
-6. The package also pins the inherited `Arrow.jl`, `ArrowTypes`, and
-   `PureHTTP2.jl` transport sources directly in `Project.toml`, so clean
+   `e992839d84dc92ffc4972e10d160ee4ce53ce126`
+6. The package also pins the inherited `Arrow.jl`, `ArrowTypes`,
+   `gRPCServer.jl`, and `PureHTTP2.jl` transport sources directly in
+   `Project.toml`, so clean
    package resolution and GitHub Actions do not rely on a workflow-local
-   inherited-source bootstrap
+   inherited-source shim
 
 Native bridge note:
 
@@ -57,10 +78,9 @@ Native bridge note:
    `ImmutableList`, and `MetaModelica` from `Main` during parser
    initialization
 2. `WendaoCodeParser.jl` therefore aliases those already-loaded modules into
-   `Main` before the first Modelica parse, especially for mounted live-child
-   startup under `WendaoSearch.jl`
+   `Main` before the first Modelica parse
 3. This runtime requirement is separate from the upstream `OMParser.jl`
-   build/bootstrap lane: the upstream PR still matters for `Pkg.build(...)`,
+   source-build lane: the upstream PR still matters for `Pkg.build(...)`,
    release assets, and CI coverage, but it does not by itself close the live
    child startup contract
 
@@ -92,7 +112,7 @@ Parser layout note:
 10. `src/parsers/julia/collect.jl` owns SyntaxNode traversal and Julia summary
    or AST state collection
 11. `src/parsers/modelica/backend.jl` now only owns the `OMParser.jl` native
-   bridge and shared-library/runtime bootstrap
+   bridge and shared-library/runtime initialization
 12. `src/parsers/modelica/nodes.jl` owns generic Modelica AST node
     materialization
 13. `src/parsers/modelica/dependencies.jl` owns Modelica `import` / `extends`
@@ -278,12 +298,10 @@ Contract note:
    distinct AST nodes instead of being collapsed globally
 28. package tests are now split under `test/support/` and `test/cases/`, so
    `test/runtests.jl` stays as a small runner instead of a monolithic file
-29. parser-specific Flight round-trip coverage is now isolated in
-   `test/cases/flight_native_columns.jl`, and mounted shared-service parser
-   regressions are isolated under `WendaoSearch.jl/test/integration/`,
-   including `live_code_parser.jl`, `live_dependency_semantics.jl`,
-   `live_relative_dependencies.jl`, `live_modelica_import_forms.jl`, and
-   `live_julia_type_headers.jl`
+29. parser-specific Flight round-trip coverage is isolated in
+   `test/cases/flight_native_columns.jl`, while parser-service route parsing,
+   listener config, and multiplexed live-service behavior are covered in
+   `test/cases/flight_services.jl`
 30. AST match rows now also promote parser-owned stable columns such as
    `match_target_name`, `match_root_module_name`, `match_top_level`,
    `match_reexported`, `match_visibility`, `match_type_name`,
@@ -306,7 +324,6 @@ GitHub Actions note:
 1. package-local CI now runs `Pkg.build()` plus `Pkg.test()` on
    `ubuntu-latest` and `macos-latest` for Julia `1.12` and `pre`
 2. a separate nightly workflow runs weekly on `ubuntu-latest`
-3. both workflows bootstrap `General` plus `OpenModelicaRegistry` before
-   running `Pkg.resolve()`, `Pkg.instantiate()`, `Pkg.build()`, and package
-   tests, so remote runners resolve the same source-locked transport stack as
-   local runs
+3. both workflows use `julia-actions/julia-buildpkg` and
+   `julia-actions/julia-runtest`, so remote runners resolve from the
+   package-owned source contract instead of workflow-local dependency shims

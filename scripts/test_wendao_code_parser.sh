@@ -2,15 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_PATH="$(mktemp -d)"
+trap 'rm -rf "${ENV_PATH}"' EXIT
 
-ENV_PATH="${WENDAO_CODE_PARSER_BOOTSTRAP_ENV:-$(mktemp -d)}"
-if [[ -z "${WENDAO_CODE_PARSER_BOOTSTRAP_ENV:-}" ]]; then
-  trap 'rm -rf "${ENV_PATH}"' EXIT
-fi
-export WENDAO_CODE_PARSER_BOOTSTRAP_ENV="${ENV_PATH}"
-
-if [[ ! -f "${ENV_PATH}/Project.toml" ]]; then
-  "${JULIA:-julia}" "${ROOT}/scripts/prepare_wendao_code_parser_env.jl"
-fi
-
-exec "${JULIA:-julia}" --project="${ENV_PATH}" "${ROOT}/test/runtests.jl"
+"${JULIA:-julia}" --project="${ENV_PATH}" -e '
+using Pkg
+package_path = popfirst!(ARGS)
+Pkg.develop(PackageSpec(path = package_path))
+Pkg.instantiate()
+Pkg.test("WendaoCodeParser"; coverage = false, test_args = ARGS)
+' "${ROOT}" "$@"

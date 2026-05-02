@@ -88,6 +88,59 @@
     @test hasproperty(docstring_query_columns, :match_attribute_value)
 end
 
+@testset "Parser service route parsing and routed live service" begin
+    @test parser_service_route_names([
+        "--code-parser-route-names",
+        "julia_file_summary,julia-ast-query",
+    ]) == [JULIA_FILE_SUMMARY_ROUTE, JULIA_AST_QUERY_ROUTE]
+    @test parser_service_route_names(["--code-parser-routes", "all"]) ==
+          supported_parser_route_names()
+
+    listener = parser_service_listener_config([
+        "--max-active-requests",
+        "4",
+        "--request-capacity=3",
+        "--response-capacity",
+        "2",
+    ])
+    @test listener.max_active_requests == 4
+    @test listener.request_capacity == 3
+    @test listener.response_capacity == 2
+    @test parser_service_interface_args([
+        "--config",
+        "config/live/parser_summary.toml",
+        "--code-parser-route-names",
+        "julia_ast_query",
+        "--max-active-requests",
+        "4",
+        "--host",
+        "127.0.0.1",
+        "--port=41081",
+    ]) == [
+        "--config",
+        "config/live/parser_summary.toml",
+        "--host",
+        "127.0.0.1",
+        "--port=41081",
+    ]
+
+    live_service =
+        build_parser_live_flight_service([JULIA_FILE_SUMMARY_ROUTE, JULIA_AST_QUERY_ROUTE])
+    request = parser_exchange_request(
+        JULIA_AST_QUERY_ROUTE,
+        [ParserRequest("live-query", "Demo.jl", JULIA_SOURCE; node_kind = "function")],
+    )
+    table = WendaoCodeParser.WendaoArrow.flight_exchange_table(
+        live_service,
+        WendaoCodeParser.WendaoArrow.Arrow.Flight.ServerCallContext(),
+        request,
+    )
+    columns = Tables.columntable(table)
+    @test columns.request_id == ["live-query"]
+    @test columns.success == [true]
+    @test columns.match_name == ["foo"]
+end
+
 @testset "Modelica Flight services round-trip summary response" begin
     summary_service = build_parser_flight_service(MODELICA_FILE_SUMMARY_ROUTE)
     summary_request = parser_exchange_request(

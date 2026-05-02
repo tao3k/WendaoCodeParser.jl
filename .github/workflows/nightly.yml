@@ -42,37 +42,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install autoconf automake libtool pkg-config
-      - name: Bootstrap registries
-        shell: julia --project=. {0}
-        run: |
-          using Pkg
-
-          function ensure_registry(name::String; spec=nothing)
-              registries = Pkg.Registry.reachable_registries()
-              any(registry -> registry.name == name, registries) && return
-              if isnothing(spec)
-                  Pkg.Registry.add(name)
-              else
-                  Pkg.Registry.add(spec)
-              end
-          end
-
-          ensure_registry("General")
-          ensure_registry(
-              "OpenModelica";
-              spec=Pkg.RegistrySpec(url="https://github.com/JKRT/OpenModelicaRegistry.git"),
-          )
-      - name: Resolve and build package
+      - uses: julia-actions/julia-buildpkg@v1
         env:
           JULIA_PKG_PRECOMPILE_AUTO: "0"
-          WENDAO_CODE_PARSER_BOOTSTRAP_ENV: ${{ runner.temp }}/wendaocodeparser-env
-        run: |
-          julia ./scripts/prepare_wendao_code_parser_env.jl
-      - name: Run package tests
+      - uses: julia-actions/julia-runtest@v1
         env:
           JULIA_NUM_THREADS: ${{ matrix.nthreads }}
           JULIA_PKG_PRECOMPILE_AUTO: "0"
-          WENDAO_CODE_PARSER_BOOTSTRAP_ENV: ${{ runner.temp }}/wendaocodeparser-env
-        run: |
-          chmod +x ./scripts/test_wendao_code_parser.sh
-          ./scripts/test_wendao_code_parser.sh
