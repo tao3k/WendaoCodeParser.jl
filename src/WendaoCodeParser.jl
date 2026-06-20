@@ -11,14 +11,15 @@ const WENDAOCODEPARSER_SCHEMA_VERSION = "v3"
 const JULIA_FILE_SUMMARY_ROUTE = :julia_file_summary
 const JULIA_ROOT_SUMMARY_ROUTE = :julia_root_summary
 const MODELICA_FILE_SUMMARY_ROUTE = :modelica_file_summary
+# Legacy AST-query routes are kept as reference constants only. Active code
+# search is owned by the Xiuxian backend and these routes are no longer
+# advertised by the WendaoCodeParser service.
 const JULIA_AST_QUERY_ROUTE = :julia_ast_query
 const MODELICA_AST_QUERY_ROUTE = :modelica_ast_query
 const PARSER_ROUTE_NAMES = (
     JULIA_FILE_SUMMARY_ROUTE,
     JULIA_ROOT_SUMMARY_ROUTE,
     MODELICA_FILE_SUMMARY_ROUTE,
-    JULIA_AST_QUERY_ROUTE,
-    MODELICA_AST_QUERY_ROUTE,
 )
 
 include("contracts/mod.jl")

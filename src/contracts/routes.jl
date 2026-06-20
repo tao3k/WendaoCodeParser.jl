@@ -28,6 +28,8 @@ function parser_route(route_name::Symbol)
             "OMParser.jl",
         )
     elseif route_name == JULIA_AST_QUERY_ROUTE
+        # Legacy reference route. Xiuxian-owned code search no longer advertises
+        # AST-query routes through parser_service_route_names().
         return ParserRouteDescriptor(
             route_name,
             "/wendao/code-parser/julia/ast-query",
@@ -35,6 +37,8 @@ function parser_route(route_name::Symbol)
             "JuliaSyntax.jl",
         )
     elseif route_name == MODELICA_AST_QUERY_ROUTE
+        # Legacy reference route. Xiuxian-owned code search no longer advertises
+        # AST-query routes through parser_service_route_names().
         return ParserRouteDescriptor(
             route_name,
             "/wendao/code-parser/modelica/ast-query",

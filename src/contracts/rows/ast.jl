@@ -1,3 +1,5 @@
+# Legacy AST row conversion retained as a reference surface only. Active code
+# search rows are produced by the Xiuxian backend, not WendaoCodeParser.
 function _parser_ast_response_rows(responses::AbstractVector{ParserResponse})
     rows = NamedTuple[]
     for response in responses
